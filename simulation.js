@@ -5,7 +5,7 @@ window.App = {
 };
 
 class Body {
-	constructor(mass, x, y, vx, vy, color, name, ax = 0, ay = 0, 
+	constructor(mass, x, y, vx, vy, color, name, startAx = 0, startAy = 0, 
 				charge = 0, magMoment = 0, restitution = 1.0, 
 				lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0) {
 		this.mass = mass;
@@ -13,8 +13,10 @@ class Body {
 		this.y = y;
 		this.vx = vx;
 		this.vy = vy;
-		this.ax = ax;
-		this.ay = ay;
+		this.ax = 0;
+		this.ay = 0;
+		this.startAx = startAx;
+		this.startAy = startAy;
 		this.radius = Math.max(2, Math.log(mass) * 2);
 		this.color = color || `hsl(${Math.random() * 360}, 70%, 60%)`;
 		this.path = [];
@@ -36,7 +38,7 @@ const Simulation = {
 	c: 50.0,
 	Ke: 10.0,
 	Km: 5.0,
-	dt: 1.0,
+	dt: 0.5,
 	paused: false,
 	maxRadius: 0,
 	
@@ -44,6 +46,8 @@ const Simulation = {
 	enableElectricity: false,
 	enableMagnetism: false,
 	enableCollision: false,
+	
+	formulaFields: [],
 	
 	showTrails: true,
 	trailLength: 100,
@@ -63,11 +67,20 @@ const Simulation = {
 					 charge = 0, magMoment = 0, restitution = 1.0, 
 					 lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0) {
 		const newName = name || `Body ${this.bodies.length + 1}`;
-		this.bodies.push(new Body(m, x, y, vx, vy, col, newName, ax, ay,
+		const newBody = new Body(m, x, y, vx, vy, col, newName, ax, ay,
 								  charge, magMoment, restitution, 
-								  lifetime, temperature, rotationSpeed, youngModulus));
+								  lifetime, temperature, rotationSpeed, youngModulus);
+		newBody.startAx = ax;
+		newBody.startAy = ay;
+		this.bodies.push(newBody);
 	},
-
+	
+	removeBody: function(index) {
+		if (index >= 0 && index < this.bodies.length) {
+			this.bodies.splice(index, 1);
+		}
+	},
+	
 	createSolarSystem: function() {
 		this.bodies = [];
 		const starMass = 25000;
@@ -118,7 +131,74 @@ const Simulation = {
 			}
 		}
 	},
+	
+	calculateFormulaField: function(x, y) {
+		let totalEx = 0;
+		let totalEy = 0;
+		const G = this.G;
+		const c = this.c;
+		const Ke = this.Ke;
+		const Km = this.Km;
+		const t = this.tickCount * this.dt;
+		
+		for (const field of this.formulaFields) {
+			if (!field.enabled || field.errorX || field.errorY) continue;
+			
+			const vars = { x, y, G, c, Ke, Km, t, PI: Math.PI, E: Math.E };
 
+			try {
+				const Ex = field.funcEx(vars);
+				const Ey = field.funcEy(vars);
+				
+				if (typeof Ex === 'number' && !isNaN(Ex)) totalEx += Ex;
+				if (typeof Ey === 'number' && !isNaN(Ey)) totalEy += Ey;
+				
+			} catch (e) {
+			}
+		}
+
+		return { Ex: totalEx, Ey: totalEy };
+	},
+	
+	compileFormula: function(formula) {
+		if (!formula || typeof formula !== 'string' || formula.trim() === '') {
+			return { func: () => 0, error: null };
+		}
+		
+		const sanitized = formula
+			.replace(/sin/g, 'Math.sin')
+			.replace(/cos/g, 'Math.cos')
+			.replace(/tan/g, 'Math.tan')
+			.replace(/log/g, 'Math.log')
+			.replace(/pow/g, 'Math.pow')
+			.replace(/abs/g, 'Math.abs')
+			.replace(/sqrt/g, 'Math.sqrt')
+			.replace(/PI/g, 'vars.PI') 
+			.replace(/E/g, 'vars.E'); 
+		
+		const allowedVars = ['x', 'y', 'G', 'c', 'Ke', 'Km', 't', 'PI', 'E']; 
+		
+		try {
+			const code = `
+				"use strict";
+				const { x, y, G, c, Ke, Km, t, PI, E } = vars;
+				return (${sanitized});
+			`;
+			const func = new Function('vars', code);
+
+			const testVars = { x: 1, y: 1, G: this.G, c: this.c, Ke: this.Ke, Km: this.Km, t: 0, PI: Math.PI, E: Math.E };
+			const result = func(testVars);
+			if (typeof result !== 'number' || isNaN(result)) {
+				return { func: () => 0, error: "Formula must return a number." };
+			}
+			
+			return { func: func, error: null };
+
+		} catch (e) {
+			return { func: () => 0, error: e.message };
+		}
+	},
+	
 	update: function() {
 		if (this.paused) return;
 
@@ -130,8 +210,14 @@ const Simulation = {
 		this.tickCount++;
 
 		for (let i = 0; i < count; i++) {
-			bodies[i].ax = 0;
-			bodies[i].ay = 0;
+			bodies[i].ax = bodies[i].startAx;
+			bodies[i].ay = bodies[i].startAy;
+			
+			if (bodies[i].charge !== 0) {
+				const field = this.calculateFormulaField(bodies[i].x, bodies[i].y);
+				bodies[i].ax += (bodies[i].charge * field.Ex) / bodies[i].mass;
+				bodies[i].ay += (bodies[i].charge * field.Ey) / bodies[i].mass;
+			}
 		}
 
 		for (let i = 0; i < count; i++) {
@@ -258,7 +344,6 @@ const Simulation = {
 			b.x += b.vx * dt;
 			b.y += b.vy * dt;
 			
-			// Mise à jour de l'angle de rotation
 			if (b.rotationSpeed !== 0) {
 				if (typeof b.angle === 'undefined') {
 					b.angle = 0;
@@ -285,15 +370,23 @@ const Simulation = {
 		const c2 = this.c * this.c;
 
 		const predictedPath = [];
+		const count = tempBodies.length;
+		const dt = stepDt;
 
 		for (let step = 0; step < numSteps; step++) {
-			for (let i = 0; i < tempBodies.length; i++) {
-				tempBodies[i].ax = 0;
-				tempBodies[i].ay = 0;
+			for (let i = 0; i < count; i++) {
+				tempBodies[i].ax = tempBodies[i].startAx;
+				tempBodies[i].ay = tempBodies[i].startAy;
+				
+				if (tempBodies[i].charge !== 0) {
+					const field = this.calculateFormulaField(tempBodies[i].x, tempBodies[i].y);
+					tempBodies[i].ax += (tempBodies[i].charge * field.Ex) / tempBodies[i].mass;
+					tempBodies[i].ay += (tempBodies[i].charge * field.Ey) / tempBodies[i].mass;
+				}
 			}
 
-			for (let i = 0; i < tempBodies.length; i++) {
-				for (let j = i + 1; j < tempBodies.length; j++) {
+			for (let i = 0; i < count; i++) {
+				for (let j = i + 1; j < count; j++) {
 					const b1 = tempBodies[i];
 					const b2 = tempBodies[j];
 
@@ -302,9 +395,11 @@ const Simulation = {
 					const distSq = dx*dx + dy*dy;
 					if (distSq === 0) continue;
 					const dist = Math.sqrt(distSq);
+					const minDist = b1.radius + b2.radius;
 
-					if (this.enableCollision && dist < (b1.radius + b2.radius) * 0.5) continue;
-
+					const nx = dx / dist;
+					const ny = dy / dist;
+					
 					let f_total = 0;
 
 					if (this.enableGravity) {
@@ -312,15 +407,78 @@ const Simulation = {
 					}
 
 					if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-						f_total -= (this.Ke * b1.charge * b2.charge) / distSq;
+						const f_elec = -(this.Ke * b1.charge * b2.charge) / distSq;
+						f_total += f_elec; 
 					}
 
 					if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-						f_total -= (this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+						const f_mag = -(this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+						f_total += f_mag;
 					}
 
-					const fx = f_total * (dx / dist);
-					const fy = f_total * (dy / dist);
+					let fx = f_total * nx;
+					let fy = f_total * ny;
+					
+					// Gérer la collision dans la prédiction
+					if (this.enableCollision && dist < minDist) {
+						const overlap = minDist - dist;
+						
+						// 1. Force de pénétration (Module de Young)
+						const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
+						if (avgYoung > 0) {
+							const penetrationForce = avgYoung * overlap * 0.05 * Math.min(b1.mass, b2.mass);
+							fx -= penetrationForce * nx;
+							fy -= penetrationForce * ny;
+						}
+
+						const dvx = b2.vx - b1.vx;
+						const dvy = b2.vy - b1.vy;
+						const vn = dvx * nx + dvy * ny; // Vitesse relative normale
+
+						if (vn < 0) { // S'ils se rapprochent
+							
+							const e = Math.min(b1.restitution, b2.restitution);
+							
+							const invMass1 = 1 / b1.mass;
+							const invMass2 = 1 / b2.mass;
+							
+							const j_numerator = -(1 + e) * vn;
+							const j_denominator = invMass1 + invMass2;
+							
+							const j_normal = j_numerator / j_denominator; 
+
+							const f_impulse = j_normal / dt; 
+							fx -= f_impulse * nx;
+							fy -= f_impulse * ny;
+							
+							// 2. Friction tangentielle
+							const tx = -ny;
+							const ty = nx;
+							
+							const vt1 = (b1.vx * tx + b1.vy * ty) + b1.rotationSpeed * b1.radius;
+							const vt2 = (b2.vx * tx + b2.vy * ty) - b2.rotationSpeed * b2.radius;
+							const relVt = vt2 - vt1;
+
+							const frictionCoeff = 0.5; 
+							
+							const j_tangent = -relVt / (invMass1 + invMass2);
+							
+							const j_friction_max = Math.abs(j_normal) * frictionCoeff;
+							const j_final_tangent = Math.max(-j_friction_max, Math.min(j_tangent, j_friction_max));
+							
+							const f_friction = j_final_tangent / dt;
+
+							fx += f_friction * tx;
+							fy += f_friction * ty;
+							
+							// 3. Mise à jour de la vitesse angulaire (Rotation)
+							const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius); 
+							const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
+							
+							b1.rotationSpeed += (j_final_tangent * b1.radius * invInertia1);
+							b2.rotationSpeed -= (j_final_tangent * b2.radius * invInertia2);
+						}
+					}
 
 					b1.ax += fx / b1.mass;
 					b1.ay += fy / b1.mass;
@@ -329,10 +487,10 @@ const Simulation = {
 				}
 			}
 
-			for (let i = 0; i < tempBodies.length; i++) {
+			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
-				b.vx += b.ax * stepDt;
-				b.vy += b.ay * stepDt;
+				b.vx += b.ax * dt;
+				b.vy += b.ay * dt;
 				
 				const vSq = b.vx*b.vx + b.vy*b.vy;
 				if (vSq > c2) {
@@ -342,8 +500,15 @@ const Simulation = {
 					b.vy *= ratio;
 				}
 				
-				b.x += b.vx * stepDt;
-				b.y += b.vy * stepDt;
+				b.x += b.vx * dt;
+				b.y += b.vy * dt;
+				
+				if (b.rotationSpeed !== 0 && typeof b.angle === 'undefined') {
+					b.angle = 0;
+				}
+				if (typeof b.angle !== 'undefined') {
+					b.angle += b.rotationSpeed * dt;
+				}
 			}
 			
 			const targetBody = tempBodies[bodyIndex];

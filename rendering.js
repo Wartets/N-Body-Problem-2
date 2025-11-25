@@ -16,9 +16,16 @@ const Rendering = {
 	enableAutoZoom: false,
 	userZoomFactor: 1.0, 
 
-	gridDetail: 8,
-	gridDistortion: 2.4,
-	gridMinDist: 20,
+	gridDetail: 5,
+	gridDistortion: 2,
+	gridMinDist: 45,
+	
+	showGravField: false,
+	showElecField: false,
+	showMagField: false,
+	showFormulaField: false,
+	fieldPrecision: 15,
+	fieldScale: 10,
 	
 	selectedBodyIdx: -1,
 	dragMode: null, 
@@ -63,9 +70,11 @@ const Rendering = {
 			} else {
 				const m = getMouseWorldPos(e.clientX, e.clientY);
 				this.zoom *= factor;
+				
 				if (!this.enableTracking) {
 					this.camX = e.clientX - this.width/2 - m.x * this.zoom;
 					this.camY = e.clientY - this.height/2 - m.y * this.zoom;
+				} else {
 				}
 			}
 		});
@@ -76,22 +85,6 @@ const Rendering = {
 			
 			this.wasPaused = window.App.sim.paused;
 
-			if (this.selectedBodyIdx !== -1) {
-				const b = bodies[this.selectedBodyIdx];
-				if (b) {
-					const tipX = b.x + b.vx * this.vectorScale;
-					const tipY = b.y + b.vy * this.vectorScale;
-					const distToTip = Math.sqrt((m.x - tipX)**2 + (m.y - tipY)**2);
-					
-					if (distToTip < 10 / this.zoom) {
-						this.dragMode = 'vector';
-						this.isDragging = true;
-						window.App.sim.paused = true;
-						return;
-					}
-				}
-			}
-
 			let clickedIdx = -1;
 			for (let i = bodies.length - 1; i >= 0; i--) {
 				const b = bodies[i];
@@ -101,15 +94,41 @@ const Rendering = {
 					break;
 				}
 			}
+			
+			const isDraggingVector = (clickedIdx === this.selectedBodyIdx && this.selectedBodyIdx !== -1);
+			if (isDraggingVector) {
+				const b = bodies[this.selectedBodyIdx];
+				const tipX = b.x + b.vx * this.vectorScale;
+				const tipY = b.y + b.vy * this.vectorScale;
+				const distToTip = Math.sqrt((m.x - tipX)**2 + (m.y - tipY)**2);
+				
+				if (distToTip < 15 / this.zoom) {
+					this.dragMode = 'vector';
+					this.isDragging = true;
+					window.App.sim.paused = true;
+					return;
+				}
+			}
 
 			if (clickedIdx !== -1) {
-				this.selectedBodyIdx = clickedIdx;
-				this.dragMode = 'body';
-				this.isDragging = true;
-				window.App.sim.paused = true;
-				if (window.App.ui && window.App.ui.highlightBody) {
-					window.App.ui.highlightBody(clickedIdx);
+				if (this.selectedBodyIdx !== clickedIdx) {
+					this.selectedBodyIdx = clickedIdx;
+					if (window.App.ui && window.App.ui.highlightBody) {
+						window.App.ui.highlightBody(clickedIdx);
+					}
 				}
+				
+				const b = bodies[clickedIdx];
+				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
+				if (dist < b.radius + (5 / this.zoom)) {
+					this.dragMode = 'body';
+					this.isDragging = true;
+					window.App.sim.paused = true; 
+				} else {
+					this.dragMode = 'select';
+					this.isDragging = false;
+				}
+				
 			} else {
 				this.selectedBodyIdx = -1;
 				if (window.App.ui && window.App.ui.highlightBody) {
@@ -218,6 +237,170 @@ const Rendering = {
 		}
 	},
 	
+	calculateField: function(x, y, bodies) {
+		let totalFx = 0;
+		let totalFy = 0;
+		let gravFx = 0;
+		let gravFy = 0;
+		let elecFx = 0;
+		let elecFy = 0;
+		let magFx = 0;
+		let magFy = 0;
+		let formulaFx = 0;
+		let formulaFy = 0;
+
+		const Sim = window.App.sim;
+
+		for (let b of bodies) {
+			const dx = b.x - x;
+			const dy = b.y - y;
+			const distSq = dx * dx + dy * dy;
+			if (distSq === 0) continue;
+			const dist = Math.sqrt(distSq);
+			
+			const nx = dx / dist;
+			const ny = dy / dist;
+
+			if (this.showGravField && Sim.enableGravity) {
+				const g_strength = (Sim.G * b.mass) / distSq;
+				gravFx += nx * g_strength;
+				gravFy += ny * g_strength;
+			}
+			
+			if (this.showElecField && Sim.enableElectricity && b.charge !== 0) {
+				const E_strength = (Sim.Ke * b.charge) / distSq;
+				elecFx += nx * E_strength;
+				elecFy += ny * E_strength;
+			}
+			
+			if (this.showMagField && Sim.enableMagnetism && b.magMoment !== 0) {
+				const B_strength = (Sim.Km * b.magMoment) / (distSq * dist);
+				magFx += nx * B_strength;
+				magFy += ny * B_strength;
+			}
+		}
+		
+		if (this.showFormulaField) {
+			const formulaField = Sim.calculateFormulaField(x, y);
+			formulaFx = formulaField.Ex;
+			formulaFy = formulaField.Ey;
+		}
+
+		totalFx = gravFx + elecFx + magFx + formulaFx;
+		totalFy = gravFy + elecFy + magFy + formulaFy;
+
+		return {
+			fx: totalFx, fy: totalFy,
+			g_fx: gravFx, g_fy: gravFy,
+			e_fx: elecFx, e_fy: elecFy,
+			m_fx: magFx, m_fy: magFy,
+			f_fx: formulaFx, f_fy: formulaFy
+		};
+	},
+
+	drawFields: function(bodies) {
+		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return
+
+		const step = this.fieldPrecision;
+		const scale = this.fieldScale / this.zoom;
+		const arrowSize = 3;
+		
+		const minIntensityThreshold = 0.05; 
+
+		const vpW = this.width / this.zoom;
+		const vpH = this.height / this.zoom;
+
+		const left = (-this.camX / this.zoom) - vpW / 2;
+		const top = (-this.camY / this.zoom) - vpH / 2;
+
+		const startX = Math.floor(left / step) * step;
+		const startY = Math.floor(top / step) * step;
+		
+		this.ctx.lineWidth = 1 / this.zoom;
+
+		for (let x = startX; x <= left + vpW; x += step) {
+			for (let y = startY; y <= top + vpH; y += step) {
+				const field = this.calculateField(x, y, bodies);
+				
+				if (this.showGravField) {
+					const magSq = field.g_fx * field.g_fx + field.g_fy * field.g_fy;
+					const mag = Math.sqrt(magSq);
+					if (mag * scale > minIntensityThreshold) {
+						this.drawFieldVector(x, y, field.g_fx, field.g_fy, scale, arrowSize, '#2ecc71', mag);
+					}
+				}
+				
+				if (this.showElecField) {
+					const magSq = field.e_fx * field.e_fx + field.e_fy * field.e_fy;
+					const mag = Math.sqrt(magSq);
+					if (mag * scale > minIntensityThreshold) {
+						this.drawFieldVector(x, y, field.e_fx, field.e_fy, scale, arrowSize, '#3498db', mag);
+					}
+				}
+				
+				if (this.showMagField) {
+					const magSq = field.m_fx * field.m_fx + field.m_fy * field.m_fy;
+					const mag = Math.sqrt(magSq);
+					if (mag * scale > minIntensityThreshold) {
+						this.drawFieldVector(x, y, field.m_fx, field.m_fy, scale, arrowSize, '#e74c3c', mag);
+					}
+				}
+				
+				if (this.showFormulaField) {
+					const magSq = field.f_fx * field.f_fx + field.f_fy * field.f_fy;
+					const mag = Math.sqrt(magSq);
+					if (mag * scale > minIntensityThreshold) {
+						this.drawFieldVector(x, y, field.f_fx, field.f_fy, scale, arrowSize, '#f1c40f', mag);
+					}
+				}
+			}
+		}
+	},
+	
+	drawFieldVector: function(x, y, fx, fy, scale, arrowSize, color, mag) {
+		if (mag === 0) return;
+		
+		let scaledFx = fx * scale;
+		let scaledFy = fy * scale;
+		
+		const maxLen = this.fieldPrecision * 0.4;
+		const lenSq = scaledFx * scaledFx + scaledFy * scaledFy;
+		
+		if (lenSq > maxLen * maxLen) {
+			const ratio = maxLen / Math.sqrt(lenSq);
+			scaledFx *= ratio;
+			scaledFy *= ratio;
+		}
+
+		const endX = x + scaledFx;
+		const endY = y + scaledFy;
+		
+		this.ctx.strokeStyle = color;
+		this.ctx.globalAlpha = Math.min(1.0, mag * 0.5 * scale); 
+
+		this.ctx.beginPath();
+		this.ctx.moveTo(x, y);
+		this.ctx.lineTo(endX, endY);
+		this.ctx.stroke();
+
+		const angle = Math.atan2(scaledFy, scaledFx);
+		const size = arrowSize / this.zoom;
+
+		this.ctx.beginPath();
+		this.ctx.moveTo(endX, endY);
+		this.ctx.lineTo(
+			endX - size * Math.cos(angle - Math.PI / 6),
+			endY - size * Math.sin(angle - Math.PI / 6)
+		);
+		this.ctx.moveTo(endX, endY);
+		this.ctx.lineTo(
+			endX - size * Math.cos(angle + Math.PI / 6),
+			endY - size * Math.sin(angle + Math.PI / 6)
+		);
+		this.ctx.stroke();
+		this.ctx.globalAlpha = 1.0;
+	},
+	
 	drawBarycenter: function(bodies) {
 		if (!bodies.length) return;
 		
@@ -309,6 +492,7 @@ const Rendering = {
 		this.ctx.scale(this.zoom, this.zoom);
 
 		this.drawGrid();
+		this.drawFields(window.App.sim.bodies);
 		this.drawBarycenter(window.App.sim.bodies);
 		this.drawTrails(window.App.sim.bodies);
 

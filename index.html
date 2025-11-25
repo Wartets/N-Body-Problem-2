@@ -8,7 +8,6 @@
 	<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 	<canvas id="simCanvas"></canvas>
 
 	<div id="controlPanel">
@@ -33,7 +32,7 @@
 					<label>Time step dt</label>
 					<span id="dtVal" class="value-display"></span>
 				</div>
-				<input type="range" id="dtSlider" min="0.1" max="5" step="0.1">
+				<input type="range" id="dtSlider" min="0.01" max="3" step="0.01">
 				
 				<div class="divider-sub"></div>
 				<div class="section-header" style="margin-top: 8px;">Interactions</div>
@@ -100,6 +99,56 @@
 					</div>
 					<input type="range" id="trailPrecSlider" min="1" max="10" step="1">
 					
+					<div class="divider-sub"></div>
+
+					<div class="section-header" style="margin-top: 8px;">Field Visualization</div>
+					
+					<label class="toggle-row">
+						<span>Show Gravity Field (g)</span>
+						<input type="checkbox" id="showGravFieldBox">
+						<div class="toggle-switch"></div>
+					</label>
+					<label class="toggle-row" style="margin-top:4px;">
+						<span>Show Electric Field (E)</span>
+						<input type="checkbox" id="showElecFieldBox">
+						<div class="toggle-switch"></div>
+					</label>
+					<label class="toggle-row" style="margin-top:4px;">
+						<span>Show Magnetic Field (B)</span>
+						<input type="checkbox" id="showMagFieldBox">
+						<div class="toggle-switch"></div>
+					</label>
+					<label class="toggle-row" style="margin-top:4px;">
+						<span>Show Formula Field (E)</span>
+						<input type="checkbox" id="showFormulaFieldBox">
+						<div class="toggle-switch"></div>
+					</label>
+					
+					<div class="divider-sub"></div>
+
+					<div class="section-header toggle-header" id="fieldDefHeader">
+						<span>Field Definition</span>
+						<button id="toggleFieldDefBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+
+					<div id="fieldDefContent">
+						<div id="fieldsListContainer" style="margin-bottom: 8px;">
+						</div>
+						<button id="addFieldBtn" class="btn secondary"><i class="fa-solid fa-plus"></i> Add Formula Field</button>
+					</div>
+					
+					<div class="control-row" style="margin-top: 8px;">
+						<label>Field Grid Precision</label>
+						<span id="fieldPrecVal" class="value-display"></span>
+					</div>
+					<input type="range" id="fieldPrecSlider" min="5" max="50" step="1">
+
+					<div class="control-row" style="margin-top: 4px;">
+						<label>Field Intensity Scale</label>
+						<span id="fieldScaleVal" class="value-display"></span>
+					</div>
+					<input type="range" id="fieldScaleSlider" min="1" max="50" step="1">
+				
 					<div class="divider-sub"></div>
 
 					<div class="control-row" style="margin-top: 8px;">

@@ -102,8 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
 				<div class="mini-input-group"><label>Pos Y</label><input type="number" class="inp-y" value="${body.y.toFixed(1)}"></div>
 				<div class="mini-input-group"><label>Vel X</label><input type="number" class="inp-vx" value="${body.vx.toFixed(2)}" step="0.1"></div>
 				<div class="mini-input-group"><label>Vel Y</label><input type="number" class="inp-vy" value="${body.vy.toFixed(2)}" step="0.1"></div>
-				<div class="mini-input-group"><label>Acc X</label><input type="number" class="inp-ax" value="${body.ax.toFixed(3)}" step="0.01"></div>
-				<div class="mini-input-group"><label>Acc Y</label><input type="number" class="inp-ay" value="${body.ay.toFixed(3)}" step="0.01"></div>
+				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${body.startAx.toFixed(3)}" step="0.01"></div>
+				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${body.startAy.toFixed(3)}" step="0.01"></div>
 
 				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${body.charge.toFixed(2)}" step="0.1"></div>
 				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${body.magMoment.toFixed(2)}" step="0.1"></div>
@@ -119,7 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		nameInput.addEventListener('change', (e) => {
 			body.name = e.target.value;
 		});
-		nameInput.addEventListener('click', (e) => e.stopPropagation());
+		
+		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
 
 		const colorInput = div.querySelector('.color-input-hidden');
 		const colorDot = div.querySelector('.body-color-dot');
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			colorDot.style.boxShadow = `0 0 5px ${body.color}`;
 			div.style.borderLeftColor = body.color;
 		});
-		colorInput.addEventListener('click', (e) => e.stopPropagation());
+		colorInput.addEventListener('mousedown', (e) => e.stopPropagation());
 
 		div.querySelector('.btn-delete').addEventListener('click', (e) => {
 			e.stopPropagation();
@@ -144,8 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		const inpY = div.querySelector('.inp-y');
 		const inpVX = div.querySelector('.inp-vx');
 		const inpVY = div.querySelector('.inp-vy');
-		const inpAX = div.querySelector('.inp-ax');
-		const inpAY = div.querySelector('.inp-ay');
+		const inpAX = div.querySelector('.inp-start-ax');
+		const inpAY = div.querySelector('.inp-start-ay');
 		
 		const inpCharge = div.querySelector('.inp-charge');
 		const inpMagMoment = div.querySelector('.inp-magMoment');
@@ -163,8 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
 			body.y = parseFloat(inpY.value) || 0;
 			body.vx = parseFloat(inpVX.value) || 0;
 			body.vy = parseFloat(inpVY.value) || 0;
-			body.ax = parseFloat(inpAX.value) || 0;
-			body.ay = parseFloat(inpAY.value) || 0;
+			body.startAx = parseFloat(inpAX.value) || 0;
+			body.startAy = parseFloat(inpAY.value) || 0;
 			
 			body.charge = parseFloat(inpCharge.value) || 0;
 			body.magMoment = parseFloat(inpMagMoment.value) || 0;
@@ -179,13 +180,18 @@ document.addEventListener('DOMContentLoaded', () => {
 		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, inpRotSpeed, inpYoungMod].forEach(inp => {
 			inp.addEventListener('change', updatePhysics);
 			inp.addEventListener('input', updatePhysics);
-			inp.addEventListener('click', (e) => e.stopPropagation());
+			inp.addEventListener('mousedown', (e) => e.stopPropagation());
 		});
-
+		
 		div.addEventListener('dragstart', (e) => {
+			if (e.target !== div) {
+				e.preventDefault();
+				return;
+			}
 			draggedItemIndex = index;
 			div.classList.add('dragging');
 			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', index);
 		});
 
 		div.addEventListener('dragend', () => {
@@ -202,14 +208,17 @@ document.addEventListener('DOMContentLoaded', () => {
 			e.preventDefault();
 			if (draggedItemIndex === null || draggedItemIndex === index) return;
 
+			const targetIndex = index;
 			const movedBody = Sim.bodies[draggedItemIndex];
 			Sim.bodies.splice(draggedItemIndex, 1);
-			Sim.bodies.splice(index, 0, movedBody);
+			Sim.bodies.splice(targetIndex, 0, movedBody);
 			
 			if (Render.selectedBodyIdx === draggedItemIndex) {
-				Render.selectedBodyIdx = index;
-			} else if (Render.selectedBodyIdx === index && draggedItemIndex < index) {
+				Render.selectedBodyIdx = targetIndex;
+			} else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) {
 				Render.selectedBodyIdx--;
+			} else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) {
+				Render.selectedBodyIdx++;
 			}
 
 			refreshBodyList();
@@ -237,7 +246,130 @@ document.addEventListener('DOMContentLoaded', () => {
 			window.App.ui.highlightBody(Render.selectedBodyIdx);
 		}
 	}
+	
+	function createFieldCard(field, index) {
+		const div = document.createElement('div');
+		div.className = 'field-card';
 
+		const renderErrors = () => {
+			const errorXEl = div.querySelector('.error-x');
+			const errorYEl = div.querySelector('.error-y');
+			
+			errorXEl.textContent = field.errorX || '';
+			errorYEl.textContent = field.errorY || '';
+			
+			errorXEl.style.display = field.errorX ? 'block' : 'none';
+			errorYEl.style.display = field.errorY ? 'block' : 'none';
+			
+			div.style.border = field.errorX || field.errorY ? '1px solid #e74c3c' : '1px solid rgba(45, 140, 240, 0.3)';
+		};
+		
+		const updateField = () => {
+			field.name = div.querySelector('.inp-field-name').value;
+			field.formulaX = div.querySelector('.inp-formula-x').value;
+			field.formulaY = div.querySelector('.inp-formula-y').value;
+			
+			const compiledX = Sim.compileFormula(field.formulaX);
+			field.funcEx = compiledX.func;
+			field.errorX = compiledX.error;
+
+			const compiledY = Sim.compileFormula(field.formulaY);
+			field.funcEy = compiledY.func;
+			field.errorY = compiledY.error;
+			
+			renderErrors();
+		};
+
+		div.innerHTML = `
+			<div class="field-card-header">
+				<label class="toggle-row" style="margin:0;">
+					<span style="font-size:12px;">Field ${index + 1} (${field.name})</span>
+					<input type="checkbox" class="inp-field-enabled" ${field.enabled ? 'checked' : ''}>
+					<div class="toggle-switch"></div>
+				</label>
+				<button class="btn-delete" title="Remove Field"><i class="fa-solid fa-trash"></i></button>
+			</div>
+			
+			<div class="field-input-group">
+				<label>Name</label>
+				<input type="text" class="inp-field-name" value="${field.name}">
+			</div>
+			<div class="field-input-group">
+				<label>E_x Formula (vars: x, y, G, c, Ke, Km, t, PI, E)</label>
+				<input type="text" class="inp-formula-x" value="${field.formulaX}">
+				<div class="tech-desc error-x" style="display:none; color: var(--danger); margin-left: 0; padding-left: 5px; border-left-color: var(--danger);"></div>
+			</div>
+			<div class="field-input-group">
+				<label>E_y Formula (vars: x, y, G, c, Ke, Km, t, PI, E)</label>
+				<input type="text" class="inp-formula-y" value="${field.formulaY}">
+				<div class="tech-desc error-y" style="display:none; color: var(--danger); margin-left: 0; padding-left: 5px; border-left-color: var(--danger);"></div>
+			</div>
+		`;
+		
+		renderErrors();
+
+		div.querySelector('.inp-field-enabled').addEventListener('change', (e) => {
+			field.enabled = e.target.checked;
+		});
+
+		div.querySelector('.inp-field-name').addEventListener('input', () => {
+			updateField();
+			refreshFieldList();
+		});
+		
+		div.querySelector('.inp-formula-x').addEventListener('input', updateField);
+		div.querySelector('.inp-formula-y').addEventListener('input', updateField);
+		
+		div.querySelector('.btn-delete').addEventListener('click', () => {
+			Sim.formulaFields.splice(index, 1);
+			refreshFieldList();
+		});
+
+		return div;
+	}
+
+	function refreshFieldList() {
+		fieldsListContainer.innerHTML = '';
+		Sim.formulaFields.forEach((field, index) => {
+			if (!field.funcEx || !field.funcEy) {
+				const compiledX = Sim.compileFormula(field.formulaX);
+				field.funcEx = compiledX.func;
+				field.errorX = compiledX.error;
+				
+				const compiledY = Sim.compileFormula(field.formulaY);
+				field.funcEy = compiledY.func;
+				field.errorY = compiledY.error;
+			}
+			
+			const card = createFieldCard(field, index);
+			fieldsListContainer.appendChild(card);
+		});
+	}
+	
+	document.getElementById('addFieldBtn').addEventListener('click', () => {
+		const newField = {
+			name: `Custom ${Sim.formulaFields.length + 1}`,
+			formulaX: '0', 
+			formulaY: '0', 
+			enabled: true
+		};
+		
+		const compiledX = Sim.compileFormula(newField.formulaX);
+		newField.funcEx = compiledX.func;
+		newField.errorX = compiledX.error;
+		
+		const compiledY = Sim.compileFormula(newField.formulaY);
+		newField.funcEy = compiledY.func;
+		newField.errorY = compiledY.error;
+		
+		Sim.formulaFields.push(newField);
+		refreshFieldList();
+		
+		if (fieldDefContent.classList.contains('hidden-content')) {
+			toggleFieldDefBtn.click();
+		}
+	});
+	
 	const originalAddBody = Sim.addBody.bind(Sim);
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
@@ -262,8 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
 				const inpY = cards[i].querySelector('.inp-y');
 				const inpVX = cards[i].querySelector('.inp-vx');
 				const inpVY = cards[i].querySelector('.inp-vy');
-				const inpAX = cards[i].querySelector('.inp-ax');
-				const inpAY = cards[i].querySelector('.inp-ay');
+				const inpAX = cards[i].querySelector('.inp-start-ax'); 
+				const inpAY = cards[i].querySelector('.inp-start-ay'); 
 				const inpRadius = cards[i].querySelector('.inp-radius');
 
 				const inpCharge = cards[i].querySelector('.inp-charge');
@@ -279,8 +411,8 @@ document.addEventListener('DOMContentLoaded', () => {
 				if (document.activeElement !== inpY) inpY.value = body.y.toFixed(1);
 				if (document.activeElement !== inpVX) inpVX.value = body.vx.toFixed(2);
 				if (document.activeElement !== inpVY) inpVY.value = body.vy.toFixed(2);
-				if (document.activeElement !== inpAX) inpAX.value = body.ax.toFixed(3);
-				if (document.activeElement !== inpAY) inpAY.value = body.ay.toFixed(3);
+				if (document.activeElement !== inpAX) inpAX.value = body.startAx.toFixed(3);
+				if (document.activeElement !== inpAY) inpAY.value = body.startAy.toFixed(3);
 				if (document.activeElement !== inpRadius) inpRadius.value = body.radius.toFixed(1);
 
 				if (document.activeElement !== inpCharge) inpCharge.value = body.charge.toFixed(2);
@@ -357,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
 		const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
-		const restitution = parseFloat((Math.random() * 0.4 + 0.6).toFixed(2));
+		const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
 		const temperature = Math.floor(Math.random() * 1000) + 100;
 		const rotationSpeed = (Math.random() - 0.5) * 0.2;
 		const youngModulus = Math.floor(Math.random() * 1000) + 100;
@@ -378,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		document.getElementById('newRotationSpeed').value = rotationSpeed.toFixed(2);
 		document.getElementById('newYoungModulus').value = youngModulus;
 	};
-	generateRandomParameters();
 	generateRandomParameters();
 	document.getElementById('randomizeBtn').addEventListener('click', generateRandomParameters);
 
@@ -455,7 +586,26 @@ document.addEventListener('DOMContentLoaded', () => {
 		refreshBodyList();
 	});
 	
-	bindRange('dtSlider', 'dtVal', Sim, 'dt', true, 1);
+	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
+	const fieldDefContent = document.getElementById('fieldDefContent');
+	const fieldsListContainer = document.getElementById('fieldsListContainer');
+	
+	const toggleFieldDefinition = () => {
+		fieldDefContent.classList.toggle('hidden-content');
+		toggleFieldDefBtn.innerHTML = fieldDefContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+	};
+
+	if (toggleFieldDefBtn) {
+		toggleFieldDefBtn.addEventListener('click', toggleFieldDefinition);
+	}
+	
+	if (fieldDefContent.classList.contains('hidden-content')) {
+		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+	} else {
+		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
+	}
+	
+	bindRange('dtSlider', 'dtVal', Sim, 'dt', true, 2);
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
 	
@@ -474,6 +624,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindToggle('magBox', Sim, 'enableMagnetism');
 	bindToggle('colBox', Sim, 'enableCollision');
 	
+	bindToggle('showGravFieldBox', Render, 'showGravField');
+	bindToggle('showElecFieldBox', Render, 'showElecField');
+	bindToggle('showMagFieldBox', Render, 'showMagField');
+	bindToggle('showFormulaFieldBox', Render, 'showFormulaField');
+	
+	bindRange('fieldPrecSlider', 'fieldPrecVal', Render, 'fieldPrecision');
+	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
+	
 	Render.init();
+	
+	Render.init();
+	refreshFieldList(); 
 	refreshBodyList();
 });

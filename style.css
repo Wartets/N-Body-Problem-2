@@ -488,3 +488,41 @@ input[type=range]::-moz-range-thumb {
 	flex-direction: column;
 	gap: 8px;
 }
+
+.field-card {
+	background: rgba(45, 140, 240, 0.05);
+	border: 1px solid rgba(45, 140, 240, 0.3);
+	border-radius: 4px;
+	padding: 8px;
+	margin-top: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.field-card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.field-card-header h4 {
+	margin: 0;
+	font-size: 11px;
+	color: var(--accent);
+}
+
+.field-input-group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.field-input-group label {
+	font-size: 9px;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+}
+.field-input-group input {
+	padding: 4px;
+	font-size: 10px;
+}
