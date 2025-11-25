@@ -43,10 +43,9 @@ canvas {
 	z-index: 0;
 }
 
-#controlPanel {
+#controlPanel, #toolsPanel {
 	position: absolute;
 	top: 20px;
-	left: 20px;
 	width: 400px;
 	max-height: calc(100vh - 40px);
 	background-color: var(--panel-bg);
@@ -60,7 +59,16 @@ canvas {
 	transition: opacity 0.2s, transform 0.2s;
 }
 
-#panelHeader {
+#controlPanel {
+	left: 20px;
+}
+
+#toolsPanel {
+	right: 20px;
+	left: auto;
+}
+
+#panelHeader, #toolsHeader {
 	padding: 10px 15px;
 	background-color: rgba(255, 255, 255, 0.03);
 	border-bottom: 1px solid var(--panel-border);
@@ -71,7 +79,7 @@ canvas {
 	user-select: none;
 	flex-shrink: 0;
 }
-#panelHeader:active { cursor: grabbing; }
+#panelHeader:active, #toolsHeader:active { cursor: grabbing; }
 
 .app-title {
 	font-weight: 600;
@@ -81,16 +89,16 @@ canvas {
 	text-transform: uppercase;
 }
 
-#togglePanelBtn {
+#togglePanelBtn, #toggleToolsBtn {
 	background: none;
 	border: none;
 	color: var(--text-secondary);
 	cursor: pointer;
 	padding: 4px;
 }
-#togglePanelBtn:hover { color: var(--text-primary); }
+#togglePanelBtn:hover, #toggleToolsBtn:hover { color: var(--text-primary); }
 
-#panelContent {
+#panelContent, #toolsContent {
 	padding: 15px;
 	overflow-y: auto;
 	display: flex;
@@ -98,27 +106,28 @@ canvas {
 	gap: 16px;
 }
 
-#panelContent::-webkit-scrollbar {
+#panelContent::-webkit-scrollbar, #toolsContent::-webkit-scrollbar {
 	width: 6px;
 }
-#panelContent::-webkit-scrollbar-track {
+#panelContent::-webkit-scrollbar-track, #toolsContent::-webkit-scrollbar-track {
 	background: var(--input-bg);
 }
-#panelContent::-webkit-scrollbar-thumb {
+#panelContent::-webkit-scrollbar-thumb, #toolsContent::-webkit-scrollbar-thumb {
 	background: #444;
 	border-radius: 3px;
 }
-#panelContent::-webkit-scrollbar-thumb:hover {
+#panelContent::-webkit-scrollbar-thumb:hover, #toolsContent::-webkit-scrollbar-thumb {
 	background: #555;
 }
 
-#controlPanel.collapsed {
+#controlPanel.collapsed, #toolsPanel.collapsed {
 	height: auto;
 	width: auto;
 	min-width: 200px;
 	max-height: auto;
 }
-#controlPanel.collapsed #panelContent {
+#controlPanel.collapsed #panelContent,
+#toolsPanel.collapsed #toolsContent {
 	display: none;
 }
 

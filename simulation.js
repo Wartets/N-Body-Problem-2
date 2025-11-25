@@ -517,6 +517,22 @@ const Simulation = {
 
 		return predictedPath;
 	},
+
+	zeroVelocities: function() {
+		for (let b of this.bodies) {
+			b.vx = 0;
+			b.vy = 0;
+			b.path = [];
+		}
+	},
+
+	reverseTime: function() {
+		for (let b of this.bodies) {
+			b.vx = -b.vx;
+			b.vy = -b.vy;
+			b.path = [];
+		}
+	},
 };
 
 window.App.sim = Simulation;

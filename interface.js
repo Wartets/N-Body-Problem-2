@@ -1,13 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
 	const Sim = window.App.sim;
 	const Render = window.App.render;
+	let maxZIndex = 100;
 
-	const panel = document.getElementById('controlPanel');
-	const header = document.getElementById('panelHeader');
-	const toggleBtn = document.getElementById('togglePanelBtn');
-	let isDraggingPanel = false;
-	let panelOffsetX = 0, panelOffsetY = 0;
-	
 	const formatVal = (val, prec = 2) => {
 		if (typeof val !== 'number' || isNaN(val)) return val;
 		const abs = Math.abs(val);
@@ -17,52 +12,122 @@ document.addEventListener('DOMContentLoaded', () => {
 		return parseFloat(val.toFixed(prec));
 	};
 
-	header.addEventListener('mousedown', (e) => {
-		if(e.target.closest('button')) return; 
-		isDraggingPanel = true;
-		const rect = panel.getBoundingClientRect();
-		panelOffsetX = e.clientX - rect.left;
-		panelOffsetY = e.clientY - rect.top;
-		header.style.cursor = 'grabbing';
-	});
+	const setupDraggable = (panelEl, headerEl, neighbors = []) => {
+		let isDragging = false;
+		let offsetX = 0, offsetY = 0;
 
-	window.addEventListener('mousemove', (e) => {
-		if (isDraggingPanel) {
-			let newX = e.clientX - panelOffsetX;
-			let newY = e.clientY - panelOffsetY;
+		panelEl.addEventListener('mousedown', () => {
+			maxZIndex++;
+			panelEl.style.zIndex = maxZIndex;
+		});
+
+		headerEl.addEventListener('mousedown', (e) => {
+			if(e.target.closest('button')) return; 
+			isDragging = true;
+			const rect = panelEl.getBoundingClientRect();
+			offsetX = e.clientX - rect.left;
+			offsetY = e.clientY - rect.top;
+			headerEl.style.cursor = 'grabbing';
 			
-			const frameMargin = 20;
-			const snapThreshold = 20;
-			const winW = window.innerWidth;
-			const winH = window.innerHeight;
-			const pW = panel.offsetWidth;
-			const pH = panel.offsetHeight;
+			panelEl.style.right = 'auto';
+			panelEl.style.left = rect.left + 'px';
+		});
 
-			if (Math.abs(newX - frameMargin) < snapThreshold) {
-				newX = frameMargin;
-			} else if (Math.abs((newX + pW) - (winW - frameMargin)) < snapThreshold) {
-				newX = winW - frameMargin - pW;
+		window.addEventListener('mousemove', (e) => {
+			if (isDragging) {
+				let newX = e.clientX - offsetX;
+				let newY = e.clientY - offsetY;
+				
+				const frameMargin = 20;
+				const snapThreshold = 20;
+				const winW = window.innerWidth;
+				const winH = window.innerHeight;
+				const pW = panelEl.offsetWidth;
+				const pH = panelEl.offsetHeight;
+
+				if (Math.abs(newX - frameMargin) < snapThreshold) newX = frameMargin;
+				else if (Math.abs((newX + pW) - (winW - frameMargin)) < snapThreshold) newX = winW - frameMargin - pW;
+
+				if (Math.abs(newY - frameMargin) < snapThreshold) newY = frameMargin;
+				else if (Math.abs((newY + pH) - (winH - frameMargin)) < snapThreshold) newY = winH - frameMargin - pH;
+
+				neighbors.forEach(neighbor => {
+					const nRect = neighbor.getBoundingClientRect();
+					
+					if (Math.abs(newX - (nRect.left + nRect.width)) < snapThreshold) newX = nRect.left + nRect.width;
+					if (Math.abs((newX + pW) - nRect.left) < snapThreshold) newX = nRect.left - pW;
+					if (Math.abs(newX - nRect.left) < snapThreshold) newX = nRect.left;
+					if (Math.abs((newX + pW) - (nRect.left + nRect.width)) < snapThreshold) newX = nRect.left + nRect.width - pW;
+
+					if (Math.abs(newY - (nRect.top + nRect.height)) < snapThreshold) newY = nRect.top + nRect.height;
+					if (Math.abs((newY + pH) - nRect.top) < snapThreshold) newY = nRect.top - pH;
+					if (Math.abs(newY - nRect.top) < snapThreshold) newY = nRect.top;
+					if (Math.abs((newY + pH) - (nRect.top + nRect.height)) < snapThreshold) newY = nRect.top + nRect.height - pH;
+				});
+
+				newX = Math.max(0, Math.min(winW - pW, newX));
+				newY = Math.max(0, Math.min(winH - pH, newY));
+
+				panelEl.style.left = newX + 'px';
+				panelEl.style.top = newY + 'px';
 			}
+		});
 
-			if (Math.abs(newY - frameMargin) < snapThreshold) {
-				newY = frameMargin;
-			} else if (Math.abs((newY + pH) - (winH - frameMargin)) < snapThreshold) {
-				newY = winH - frameMargin - pH;
-			}
+		window.addEventListener('mouseup', () => { 
+			isDragging = false; 
+			headerEl.style.cursor = 'grab'; 
+		});
+	};
 
-			newX = Math.max(0, Math.min(winW - pW, newX));
-			newY = Math.max(0, Math.min(winH - header.offsetHeight, newY));
-
-			panel.style.left = newX + 'px';
-			panel.style.top = newY + 'px';
-		}
-	});
-
-	window.addEventListener('mouseup', () => { isDraggingPanel = false; header.style.cursor = 'grab'; });
-
+	const toggleBtn = document.getElementById('togglePanelBtn');
 	toggleBtn.addEventListener('click', () => {
 		panel.classList.toggle('collapsed');
 		toggleBtn.innerHTML = panel.classList.contains('collapsed') ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
+	});
+
+	const panel = document.getElementById('controlPanel');
+	const header = document.getElementById('panelHeader');
+	const toolsPanel = document.getElementById('toolsPanel');
+	const toolsHeader = document.getElementById('toolsHeader');
+
+	setupDraggable(panel, header, [toolsPanel]);
+	setupDraggable(toolsPanel, toolsHeader, [panel]);
+
+	const toggleToolsBtn = document.getElementById('toggleToolsBtn');
+	toggleToolsBtn.addEventListener('click', () => {
+		const willExpand = toolsPanel.classList.contains('collapsed');
+		toolsPanel.classList.toggle('collapsed');
+		
+		if (willExpand) {
+			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-minus"></i>';
+			
+			const rect = toolsPanel.getBoundingClientRect();
+			if (rect.right > window.innerWidth) {
+				if (toolsPanel.style.left) {
+					const newLeft = window.innerWidth - rect.width - 20;
+					toolsPanel.style.left = Math.max(0, newLeft) + 'px';
+				} else {
+					toolsPanel.style.right = '20px';
+					toolsPanel.style.left = 'auto';
+				}
+			}
+		} else {
+			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+		}
+	});
+
+	document.getElementById('zeroVelBtn').addEventListener('click', () => {
+		Sim.zeroVelocities();
+		if (window.App.ui && window.App.ui.syncInputs) {
+			window.App.ui.syncInputs();
+		}
+	});
+
+	document.getElementById('reverseVelBtn').addEventListener('click', () => {
+		Sim.reverseTime();
+		if (window.App.ui && window.App.ui.syncInputs) {
+			window.App.ui.syncInputs();
+		}
 	});
 
 	const toggleInjBtn = document.getElementById('toggleInjectionBtn');
@@ -111,152 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	let draggedItemIndex = null;
 
-	function createBodyCard(body, index) {
-		const div = document.createElement('div');
-		div.className = 'body-card';
-		div.style.borderLeftColor = body.color;
-		div.dataset.index = index;
-		div.setAttribute('draggable', 'true');
-
-		div.innerHTML = `
-			<div class="card-header">
-				<span class="body-id">
-					<div class="body-color-wrapper">
-						<span class="body-color-dot" style="background-color: ${body.color}; box-shadow: 0 0 5px ${body.color}"></span>
-						<input type="color" class="color-input-hidden" value="${body.color.startsWith('#') ? body.color : '#ffffff'}">
-					</div>
-					<input type="text" class="body-name-input" value="${body.name}">
-				</span>
-				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
-			</div>
-			<div class="card-grid">
-				<div class="mini-input-group"><label>Mass</label><input type="number" class="inp-mass" value="${formatVal(body.mass, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Radius</label><input type="number" class="inp-radius" value="${formatVal(body.radius, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Pos X</label><input type="number" class="inp-x" value="${formatVal(body.x, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Pos Y</label><input type="number" class="inp-y" value="${formatVal(body.y, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Vel X</label><input type="number" class="inp-vx" value="${formatVal(body.vx, 3)}" step="any"></div>
-				<div class="mini-input-group"><label>Vel Y</label><input type="number" class="inp-vy" value="${formatVal(body.vy, 3)}" step="any"></div>
-				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${formatVal(body.startAx, 3)}" step="any"></div>
-				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${formatVal(body.startAy, 3)}" step="any"></div>
-
-				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${formatVal(body.charge, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${formatVal(body.magMoment, 2)}" step="any"></div>
-				<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-restitution" value="${formatVal(body.restitution, 2)}" min="0" max="1" step="0.01"></div>
-				<div class="mini-input-group"><label>Lifetime</label><input type="number" class="inp-lifetime" value="${body.lifetime}" min="-1" step="1"></div>
-				<div class="mini-input-group"><label>Temp</label><input type="number" class="inp-temp" value="${formatVal(body.temperature, 0)}" step="any"></div>
-				<div class="mini-input-group"><label>Rotation</label><input type="number" class="inp-rotSpeed" value="${formatVal(body.rotationSpeed, 3)}" step="any"></div>
-				<div class="mini-input-group"><label>Young's Mod.</label><input type="number" class="inp-youngMod" value="${formatVal(body.youngModulus, 0)}" step="any"></div>
-			</div>
-		`;
-
-		const nameInput = div.querySelector('.body-name-input');
-		nameInput.addEventListener('change', (e) => { body.name = e.target.value; });
-		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
-
-		const colorInput = div.querySelector('.color-input-hidden');
-		const colorDot = div.querySelector('.body-color-dot');
-		
-		colorInput.addEventListener('input', (e) => {
-			body.color = e.target.value;
-			colorDot.style.backgroundColor = body.color;
-			colorDot.style.boxShadow = `0 0 5px ${body.color}`;
-			div.style.borderLeftColor = body.color;
-		});
-		colorInput.addEventListener('mousedown', (e) => e.stopPropagation());
-
-		div.querySelector('.btn-delete').addEventListener('click', (e) => {
-			e.stopPropagation();
-			Sim.bodies.splice(index, 1);
-			refreshBodyList();
-		});
-
-		const inpMass = div.querySelector('.inp-mass');
-		const inpRadius = div.querySelector('.inp-radius');
-		const inpX = div.querySelector('.inp-x');
-		const inpY = div.querySelector('.inp-y');
-		const inpVX = div.querySelector('.inp-vx');
-		const inpVY = div.querySelector('.inp-vy');
-		const inpAX = div.querySelector('.inp-start-ax');
-		const inpAY = div.querySelector('.inp-start-ay');
-		
-		const inpCharge = div.querySelector('.inp-charge');
-		const inpMagMoment = div.querySelector('.inp-magMoment');
-		const inpRestitution = div.querySelector('.inp-restitution');
-		const inpLifetime = div.querySelector('.inp-lifetime');
-		const inpTemp = div.querySelector('.inp-temp');
-		const inpRotSpeed = div.querySelector('.inp-rotSpeed');
-		const inpYoungMod = div.querySelector('.inp-youngMod');
-
-		const updatePhysics = () => {
-			body.mass = parseFloat(inpMass.value) || 1;
-			body.radius = parseFloat(inpRadius.value) || 2;
-			body.x = parseFloat(inpX.value) || 0;
-			body.y = parseFloat(inpY.value) || 0;
-			body.vx = parseFloat(inpVX.value) || 0;
-			body.vy = parseFloat(inpVY.value) || 0;
-			body.startAx = parseFloat(inpAX.value) || 0;
-			body.startAy = parseFloat(inpAY.value) || 0;
-			
-			body.charge = parseFloat(inpCharge.value) || 0;
-			body.magMoment = parseFloat(inpMagMoment.value) || 0;
-			body.restitution = parseFloat(inpRestitution.value) || 1.0;
-			body.lifetime = parseFloat(inpLifetime.value) || -1;
-			body.temperature = parseFloat(inpTemp.value) || 0;
-			body.rotationSpeed = parseFloat(inpRotSpeed.value) || 0;
-			body.youngModulus = parseFloat(inpYoungMod.value) || 0;
-		};
-
-		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
-		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, inpRotSpeed, inpYoungMod].forEach(inp => {
-			inp.addEventListener('change', updatePhysics);
-			inp.addEventListener('input', updatePhysics);
-			inp.addEventListener('mousedown', (e) => e.stopPropagation());
-		});
-		
-		div.addEventListener('dragstart', (e) => {
-			if (e.target !== div) { e.preventDefault(); return; }
-			draggedItemIndex = index;
-			div.classList.add('dragging');
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', index);
-		});
-
-		div.addEventListener('dragend', () => {
-			div.classList.remove('dragging');
-			draggedItemIndex = null;
-		});
-
-		div.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			e.dataTransfer.dropEffect = 'move';
-		});
-
-		div.addEventListener('drop', (e) => {
-			e.preventDefault();
-			if (draggedItemIndex === null || draggedItemIndex === index) return;
-
-			const targetIndex = index;
-			const movedBody = Sim.bodies[draggedItemIndex];
-			Sim.bodies.splice(draggedItemIndex, 1);
-			Sim.bodies.splice(targetIndex, 0, movedBody);
-			
-			const sortSel = document.getElementById('bodySortSelect');
-			if(sortSel) sortSel.value = '';
-			
-			if (Render.selectedBodyIdx === draggedItemIndex) {
-				Render.selectedBodyIdx = targetIndex;
-			} else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) {
-				Render.selectedBodyIdx--;
-			} else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) {
-				Render.selectedBodyIdx++;
-			}
-
-			refreshBodyList();
-		});
-
-		return div;
-	}
-	
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
 		div.className = 'body-card';
@@ -688,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		},
 	};
 
-	const generateRandomParameters = (setDefault = false) => {
+	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
 		const bodies = Sim.bodies;
 		let totalMass = 0;
 		let comX = 0;
@@ -746,30 +665,253 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 		}
 
-		const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
-		const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
-		const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
-		const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
-		const temperature = Math.floor(Math.random() * 1000) + 100;
-		const rotationSpeed = (Math.random() - 0.5) * 0.2;
-		const youngModulus = Math.floor(Math.random() * 1000) + 100;
-
-		document.getElementById('newMass').value = formatVal(mass, 2);
 		document.getElementById('newX').value = formatVal(x, 2);
 		document.getElementById('newY').value = formatVal(y, 2);
 		document.getElementById('newVX').value = formatVal(vx, 3);
 		document.getElementById('newVY').value = formatVal(vy, 3);
 		document.getElementById('newAX').value = 0;
 		document.getElementById('newAY').value = 0;
-		
-		document.getElementById('newCharge').value = formatVal(charge, 2);
-		document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
-		document.getElementById('newRestitution').value = formatVal(restitution, 2);
-		document.getElementById('newLifetime').value = -1;
-		document.getElementById('newTemperature').value = formatVal(temperature, 0);
-		document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
-		document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
+
+		if (!onlyKinematics) {
+			const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
+			const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
+			const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
+			const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
+			const temperature = Math.floor(Math.random() * 1000) + 100;
+			const rotationSpeed = (Math.random() - 0.5) * 0.2;
+			const youngModulus = Math.floor(Math.random() * 1000) + 100;
+
+			document.getElementById('newMass').value = formatVal(mass, 2);
+			document.getElementById('newCharge').value = formatVal(charge, 2);
+			document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
+			document.getElementById('newRestitution').value = formatVal(restitution, 2);
+			document.getElementById('newLifetime').value = -1;
+			document.getElementById('newTemperature').value = formatVal(temperature, 0);
+			document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
+			document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
+			
+			const presetSelect = document.getElementById('presetSelect');
+			if (presetSelect) {
+				presetSelect.value = "";
+				delete presetSelect.dataset.color;
+			}
+		}
 	};
+	
+	const initPresets = () => {
+		const presetSelect = document.getElementById('presetSelect');
+		if (!presetSelect) return;
+
+		const rnd = (min, max) => min + Math.random() * (max - min);
+		const rndInt = (min, max) => Math.floor(rnd(min, max));
+
+		const presets = {
+			"Star: Red Giant": (S) => ({
+				mass: rnd(60000, 90000) / (S.G * 2),
+				charge: rnd(-5, 5),
+				magMoment: rnd(50, 150),
+				restitution: 0.2,
+				temperature: rndInt(3000, 4500),
+				youngModulus: rnd(100, 500),
+				rotationSpeed: rnd(0.001, 0.005),
+				color: `hsl(${rndInt(0, 20)}, 100%, 60%)`
+			}),
+			"Star: Yellow Dwarf (Sun)": (S) => ({
+				mass: rnd(20000, 30000) / (S.G * 2),
+				charge: 0,
+				magMoment: rnd(10, 50),
+				restitution: 0.5,
+				temperature: rndInt(5500, 6000),
+				youngModulus: rnd(1000, 2000),
+				rotationSpeed: rnd(0.01, 0.03),
+				color: `hsl(${rndInt(45, 60)}, 100%, 70%)`
+			}),
+			"Star: White Dwarf": (S) => ({
+				mass: rnd(15000, 25000) / (S.G * 2),
+				charge: rnd(0, 10),
+				magMoment: rnd(100, 300),
+				restitution: 0.9,
+				temperature: rndInt(15000, 30000),
+				youngModulus: rnd(50000, 80000),
+				rotationSpeed: rnd(0.1, 0.5),
+				color: `hsl(${rndInt(190, 220)}, 50%, 90%)`
+			}),
+			"Star: Neutron": (S) => ({
+				mass: rnd(35000, 50000) / (S.G * 2),
+				charge: rnd(50, 100) / Math.sqrt(S.Ke),
+				magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
+				restitution: 0.95,
+				temperature: rndInt(500000, 1000000),
+				youngModulus: 200000,
+				rotationSpeed: rnd(2.0, 5.0),
+				color: '#ffffff'
+			}),
+			"Black Hole (Simulated)": (S) => ({
+				mass: rnd(150000, 300000) / (S.G * 2),
+				charge: 0,
+				magMoment: 0,
+				restitution: 0,
+				temperature: 0,
+				youngModulus: 1000000,
+				rotationSpeed: rnd(1.0, 10.0),
+				color: '#000000'
+			}),
+			"Planet: Gas Giant": (S) => ({
+				mass: rnd(1000, 2500) / (S.G * 2),
+				charge: rnd(-2, 2),
+				magMoment: rnd(20, 80),
+				restitution: 0.7,
+				temperature: rndInt(100, 160),
+				youngModulus: rnd(100, 300),
+				rotationSpeed: rnd(0.05, 0.15),
+				color: `hsl(${rndInt(25, 45)}, 80%, ${rndInt(50, 70)}%)`
+			}),
+			"Planet: Rocky (Habitable)": (S) => ({
+				mass: rnd(80, 150) / (S.G * 2),
+				charge: 0,
+				magMoment: rnd(2, 10),
+				restitution: 0.5,
+				temperature: rndInt(250, 320),
+				youngModulus: rnd(3000, 6000),
+				rotationSpeed: rnd(0.1, 0.3),
+				color: `hsl(${rndInt(100, 140)}, 60%, 50%)`
+			}),
+			"Planet: Molten": (S) => ({
+				mass: rnd(60, 120) / (S.G * 2),
+				charge: rnd(0, 5),
+				magMoment: rnd(1, 5),
+				restitution: 0.3,
+				temperature: rndInt(800, 1500),
+				youngModulus: rnd(1000, 2000),
+				rotationSpeed: rnd(0.05, 0.1),
+				color: `hsl(${rndInt(0, 20)}, 80%, 40%)`
+			}),
+			"Particle: Electron": (S) => ({
+				mass: 0.5,
+				charge: -20 / Math.sqrt(S.Ke),
+				magMoment: 5 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 8.0,
+				color: '#ffff00'
+			}),
+			"Particle: Proton": (S) => ({
+				mass: 50,
+				charge: 20 / Math.sqrt(S.Ke),
+				magMoment: 2 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 1.0,
+				color: '#ff3333'
+			}),
+			"Particle: Neutron": (S) => ({
+				mass: 50.1,
+				charge: 0,
+				magMoment: -3 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 1.0,
+				color: '#aaaaaa'
+			}),
+			"Ball: Billiard": (S) => ({
+				mass: 10,
+				charge: 0,
+				magMoment: 0,
+				restitution: 0.98,
+				temperature: 20,
+				youngModulus: 15000,
+				rotationSpeed: 0,
+				color: `hsl(${rndInt(0, 360)}, 80%, 50%)`
+			}),
+			"Ball: Pétanque": (S) => ({
+				mass: 40,
+				charge: 0,
+				magMoment: rnd(0, 0.5),
+				restitution: 0.25,
+				temperature: 25,
+				youngModulus: 50000,
+				rotationSpeed: 0,
+				color: '#71706e'
+			}),
+			"Ball: Tennis": (S) => ({
+				mass: 3,
+				charge: rnd(0, 2),
+				magMoment: 0,
+				restitution: 0.85,
+				temperature: 20,
+				youngModulus: 2000,
+				rotationSpeed: 0,
+				color: '#ccff00'
+			}),
+			"Object: Soap Bubble": (S) => ({
+				mass: 0.1,
+				charge: rnd(1, 3),
+				magMoment: 0,
+				restitution: 0.8,
+				temperature: 15,
+				youngModulus: 10,
+				rotationSpeed: rnd(0.1, 0.5),
+				color: 'rgba(200, 240, 255, 0.6)'
+			}),
+			"Object: Magnet": (S) => ({
+				mass: 25,
+				charge: 0,
+				magMoment: rnd(80, 120) / Math.sqrt(S.Km),
+				restitution: 0.5,
+				temperature: 20,
+				youngModulus: 10000,
+				rotationSpeed: 0,
+				color: '#ff0000'
+			})
+		};
+
+		Object.keys(presets).forEach(key => {
+			const opt = document.createElement('option');
+			opt.value = key;
+			opt.textContent = key;
+			presetSelect.appendChild(opt);
+		});
+
+		presetSelect.addEventListener('change', () => {
+			const key = presetSelect.value;
+			if (key && presets[key]) {
+				const params = presets[key](Sim);
+				
+				document.getElementById('newMass').value = formatVal(params.mass, 2);
+				document.getElementById('newCharge').value = formatVal(params.charge, 2);
+				document.getElementById('newMagMoment').value = formatVal(params.magMoment, 2);
+				document.getElementById('newRestitution').value = formatVal(params.restitution, 2);
+				document.getElementById('newTemperature').value = formatVal(params.temperature, 0);
+				document.getElementById('newRotationSpeed').value = formatVal(params.rotationSpeed, 3);
+				document.getElementById('newYoungModulus').value = formatVal(params.youngModulus, 0);
+				
+				if (params.color) {
+					presetSelect.dataset.color = params.color;
+				} else {
+					delete presetSelect.dataset.color;
+				}
+			}
+		});
+
+		const inputIds = ['newMass', 'newX', 'newY', 'newVX', 'newVY', 'newAX', 'newAY', 
+			'newCharge', 'newMagMoment', 'newRestitution', 'newLifetime', 
+			'newTemperature', 'newRotationSpeed', 'newYoungModulus'];
+		
+		inputIds.forEach(id => {
+			const el = document.getElementById(id);
+			if(el) {
+				el.addEventListener('input', () => {
+					presetSelect.value = "";
+					delete presetSelect.dataset.color;
+				});
+			}
+		});
+	};
+	
+	initPresets();
 
 	const injectCurrentBody = () => {
 		const m = parseFloat(document.getElementById('newMass').value);
@@ -788,7 +930,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		const rotationSpeed = parseFloat(document.getElementById('newRotationSpeed').value) || 0;
 		const youngModulus = parseFloat(document.getElementById('newYoungModulus').value) || 0;
 		
-		Sim.addBody(m, x, y, vx, vy, null, null, ax, ay, 
+		const presetColor = document.getElementById('presetSelect').dataset.color || null;
+
+		Sim.addBody(m, x, y, vx, vy, presetColor, null, ax, ay, 
 					charge, magMoment, restitution, 
 					lifetime, temperature, rotationSpeed, youngModulus);
 	};
@@ -851,7 +995,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	document.getElementById('addBodyBtn').addEventListener('click', () => {
 		injectCurrentBody();
-		generateRandomParameters(false);
+		const presetSelect = document.getElementById('presetSelect');
+		if (presetSelect && presetSelect.value) {
+			generateRandomParameters(false, true);
+		} else {
+			generateRandomParameters(false, false);
+		}
 	});
 
 	document.getElementById('addSolarSystemBtn').addEventListener('click', () => {
