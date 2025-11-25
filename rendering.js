@@ -74,7 +74,6 @@ const Rendering = {
 				if (!this.enableTracking) {
 					this.camX = e.clientX - this.width/2 - m.x * this.zoom;
 					this.camY = e.clientY - this.height/2 - m.y * this.zoom;
-				} else {
 				}
 			}
 		});
@@ -85,18 +84,7 @@ const Rendering = {
 			
 			this.wasPaused = window.App.sim.paused;
 
-			let clickedIdx = -1;
-			for (let i = bodies.length - 1; i >= 0; i--) {
-				const b = bodies[i];
-				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
-				if (dist < Math.max(b.radius, 5 / this.zoom)) {
-					clickedIdx = i;
-					break;
-				}
-			}
-			
-			const isDraggingVector = (clickedIdx === this.selectedBodyIdx && this.selectedBodyIdx !== -1);
-			if (isDraggingVector) {
+			if (this.selectedBodyIdx !== -1 && bodies[this.selectedBodyIdx]) {
 				const b = bodies[this.selectedBodyIdx];
 				const tipX = b.x + b.vx * this.vectorScale;
 				const tipY = b.y + b.vy * this.vectorScale;
@@ -110,6 +98,16 @@ const Rendering = {
 				}
 			}
 
+			let clickedIdx = -1;
+			for (let i = bodies.length - 1; i >= 0; i--) {
+				const b = bodies[i];
+				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
+				if (dist < Math.max(b.radius, 5 / this.zoom)) {
+					clickedIdx = i;
+					break;
+				}
+			}
+
 			if (clickedIdx !== -1) {
 				if (this.selectedBodyIdx !== clickedIdx) {
 					this.selectedBodyIdx = clickedIdx;
@@ -119,15 +117,9 @@ const Rendering = {
 				}
 				
 				const b = bodies[clickedIdx];
-				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
-				if (dist < b.radius + (5 / this.zoom)) {
-					this.dragMode = 'body';
-					this.isDragging = true;
-					window.App.sim.paused = true; 
-				} else {
-					this.dragMode = 'select';
-					this.isDragging = false;
-				}
+				this.dragMode = 'body';
+				this.isDragging = true;
+				window.App.sim.paused = true; 
 				
 			} else {
 				this.selectedBodyIdx = -1;
@@ -502,7 +494,11 @@ const Rendering = {
 			this.ctx.beginPath();
 			this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
 			this.ctx.fillStyle = b.color;
+			
+			this.ctx.shadowBlur = 10;
+			this.ctx.shadowColor = b.color;
 			this.ctx.fill();
+			this.ctx.shadowBlur = 0;
 			
 			if (typeof b.angle !== 'undefined') {
 				this.ctx.beginPath();
@@ -515,11 +511,6 @@ const Rendering = {
 				this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
 				this.ctx.stroke();
 			}
-			
-			this.ctx.shadowBlur = 10;
-			this.ctx.shadowColor = b.color;
-			this.ctx.fill();
-			this.ctx.shadowBlur = 0;
 
 			if (i === this.selectedBodyIdx) {
 				this.ctx.beginPath();

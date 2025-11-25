@@ -442,51 +442,65 @@ document.addEventListener('DOMContentLoaded', () => {
 		},
 	};
 
-	const generateRandomParameters = () => {
+	const generateRandomParameters = (setDefault = false) => {
 		const bodies = Sim.bodies;
 		let totalMass = 0;
 		let comX = 0;
 		let comY = 0;
-		let maxR = 0;
 
 		if (bodies.length > 0) {
 			bodies.forEach(b => {
 				totalMass += b.mass;
 				comX += b.x * b.mass;
 				comY += b.y * b.mass;
-				const distSq = (b.x - Render.camX) ** 2 + (b.y - Render.camY) ** 2;
-				const dist = Math.sqrt(distSq);
-				if (dist > maxR) maxR = dist;
 			});
 			comX /= totalMass;
 			comY /= totalMass;
 		}
 
-		const mass = Math.floor(Math.random() * 800) + 100;
+		const zoom = Render.zoom;
+		const viewW = Render.width / zoom;
+		const viewH = Render.height / zoom;
+		const centerX = -Render.camX / zoom;
+		const centerY = -Render.camY / zoom;
+		
+		const marginX = viewW * 0.1;
+		const marginY = viewH * 0.1;
+		const rangeX = (viewW / 2) - marginX;
+		const rangeY = (viewH / 2) - marginY;
+
 		let x, y, vx, vy;
 
-		if (totalMass > 0) {
-			const r = Math.max(maxR, 150) * (0.6 + Math.random() * 0.6);
-			const angle = Math.random() * Math.PI * 2;
-			
-			x = comX + Math.cos(angle) * r;
-			y = comY + Math.sin(angle) * r;
-			
-			const vCircular = Math.sqrt((Sim.G * totalMass) / r);
-			const direction = Math.random() > 0.5 ? 1 : -1;
-			
-			vx = -Math.sin(angle) * vCircular * direction;
-			vy = Math.cos(angle) * vCircular * direction;
-			
-			vx += (Math.random() - 0.5) * (vCircular * 0.1);
-			vy += (Math.random() - 0.5) * (vCircular * 0.1);
+		if (setDefault) {
+			x = 10; 
+			y = 10;
+			vx = 0;
+			vy = 0;
 		} else {
-			x = (Math.random() - 0.5) * 400;
-			y = (Math.random() - 0.5) * 400;
-			vx = (Math.random() - 0.5) * 2;
-			vy = (Math.random() - 0.5) * 2;
+			x = centerX + (Math.random() - 0.5) * 2 * rangeX;
+			y = centerY + (Math.random() - 0.5) * 2 * rangeY;
+			
+			if (totalMass > 0) {
+				const dx = x - comX;
+				const dy = y - comY;
+				const dist = Math.sqrt(dx*dx + dy*dy);
+				const v = Math.sqrt((Sim.G * totalMass) / dist);
+				
+				const angle = Math.atan2(dy, dx);
+				const dir = Math.random() > 0.5 ? 1 : -1;
+				
+				vx = -Math.sin(angle) * v * dir;
+				vy = Math.cos(angle) * v * dir;
+				
+				vx += (Math.random() - 0.5) * v * 0.2;
+				vy += (Math.random() - 0.5) * v * 0.2;
+			} else {
+				vx = (Math.random() - 0.5) * 2;
+				vy = (Math.random() - 0.5) * 2;
+			}
 		}
 
+		const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
 		const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
 		const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
 		const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
@@ -510,8 +524,29 @@ document.addEventListener('DOMContentLoaded', () => {
 		document.getElementById('newRotationSpeed').value = rotationSpeed.toFixed(2);
 		document.getElementById('newYoungModulus').value = youngModulus;
 	};
-	generateRandomParameters();
-	document.getElementById('randomizeBtn').addEventListener('click', generateRandomParameters);
+
+	const injectCurrentBody = () => {
+		const m = parseFloat(document.getElementById('newMass').value);
+		const x = parseFloat(document.getElementById('newX').value);
+		const y = parseFloat(document.getElementById('newY').value);
+		const vx = parseFloat(document.getElementById('newVX').value);
+		const vy = parseFloat(document.getElementById('newVY').value);
+		const ax = parseFloat(document.getElementById('newAX').value) || 0;
+		const ay = parseFloat(document.getElementById('newAY').value) || 0;
+		
+		const charge = parseFloat(document.getElementById('newCharge').value) || 0;
+		const magMoment = parseFloat(document.getElementById('newMagMoment').value) || 0;
+		const restitution = parseFloat(document.getElementById('newRestitution').value) || 1.0;
+		const lifetime = parseFloat(document.getElementById('newLifetime').value) || -1;
+		const temperature = parseFloat(document.getElementById('newTemperature').value) || 0;
+		const rotationSpeed = parseFloat(document.getElementById('newRotationSpeed').value) || 0;
+		const youngModulus = parseFloat(document.getElementById('newYoungModulus').value) || 0;
+		
+		Sim.addBody(m, x, y, vx, vy, null, null, ax, ay, 
+					charge, magMoment, restitution, 
+					lifetime, temperature, rotationSpeed, youngModulus);
+	};
+	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
 
 	const playBtn = document.getElementById('playPauseBtn');
 	playBtn.addEventListener('click', () => {
@@ -529,7 +564,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	document.getElementById('resetBtn').addEventListener('click', () => {
 		Sim.reset();
-		if(Sim.paused) Render.draw(); 
+		Sim.paused = true;
+		
+		playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+		playBtn.classList.remove('primary');
+		playBtn.style.color = "#aaa";
+		
+		generateRandomParameters(true);
+		injectCurrentBody();
+		generateRandomParameters(false);
+		Render.draw(); 
 	});
 
 	const bindRange = (idInput, idDisplay, obj, prop, isFloat = false, prec = 1) => {
@@ -560,25 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	document.getElementById('addBodyBtn').addEventListener('click', () => {
-		const m = parseFloat(document.getElementById('newMass').value);
-		const x = parseFloat(document.getElementById('newX').value);
-		const y = parseFloat(document.getElementById('newY').value);
-		const vx = parseFloat(document.getElementById('newVX').value);
-		const vy = parseFloat(document.getElementById('newVY').value);
-		const ax = parseFloat(document.getElementById('newAX').value) || 0;
-		const ay = parseFloat(document.getElementById('newAY').value) || 0;
-		
-		const charge = parseFloat(document.getElementById('newCharge').value) || 0;
-		const magMoment = parseFloat(document.getElementById('newMagMoment').value) || 0;
-		const restitution = parseFloat(document.getElementById('newRestitution').value) || 1.0;
-		const lifetime = parseFloat(document.getElementById('newLifetime').value) || -1;
-		const temperature = parseFloat(document.getElementById('newTemperature').value) || 0;
-		const rotationSpeed = parseFloat(document.getElementById('newRotationSpeed').value) || 0;
-		const youngModulus = parseFloat(document.getElementById('newYoungModulus').value) || 0;
-		
-		Sim.addBody(m, x, y, vx, vy, null, null, ax, ay, 
-					charge, magMoment, restitution, 
-					lifetime, temperature, rotationSpeed, youngModulus);
+		injectCurrentBody();
+		generateRandomParameters(false);
 	});
 
 	document.getElementById('addSolarSystemBtn').addEventListener('click', () => {
@@ -633,8 +660,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
 	
 	Render.init();
-	
-	Render.init();
 	refreshFieldList(); 
-	refreshBodyList();
+	
+	Sim.reset();
+	Sim.paused = true;
+	
+	playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+	playBtn.classList.remove('primary');
+	playBtn.style.color = "#aaa";
+
+	generateRandomParameters(true);
+	injectCurrentBody();
+	generateRandomParameters(false);
+	Render.draw();
 });

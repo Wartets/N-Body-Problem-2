@@ -29,6 +29,7 @@ class Body {
 		this.temperature = temperature;
 		this.rotationSpeed = rotationSpeed;
 		this.youngModulus = youngModulus;
+		this.angle = 0;
 	}
 };
 
@@ -39,7 +40,7 @@ const Simulation = {
 	Ke: 10.0,
 	Km: 5.0,
 	dt: 0.5,
-	paused: false,
+	paused: true,
 	maxRadius: 0,
 	
 	enableGravity: true,
@@ -60,7 +61,6 @@ const Simulation = {
 
 	reset: function() {
 		this.bodies = [];
-		this.addBody(2000, 0, 0, 0, 0, `hsl(${Math.random() * 360}, 70%, 60%)`);
 	},
 
 	addBody: function(m, x, y, vx, vy, col, name, ax = 0, ay = 0,
