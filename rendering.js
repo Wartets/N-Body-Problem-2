@@ -30,12 +30,21 @@ const Rendering = {
 	selectedBodyIdx: -1,
 	dragMode: null, 
 	vectorScale: 15,
+	
+	predictionLength: 300,
 
 	drawMode: 'none', 
 	selectedZoneId: null,
 	selectedViscosityZoneId: null,
 	tempZoneStart: null,
 	tempZoneCurrent: null,
+	
+	selectedZoneId: null,
+	selectedViscosityZoneId: null,
+	selectedBondId: null,
+	tempZoneStart: null,
+	tempZoneCurrent: null,
+	tempBondStart: null,
 
 	init: function() {
 		this.canvas = document.getElementById('simCanvas');
@@ -86,6 +95,7 @@ const Rendering = {
 
 		this.canvas.addEventListener('mousedown', (e) => {
 			const m = getMouseWorldPos(e.clientX, e.clientY);
+			const bodies = window.App.sim.bodies;
 			
 			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity') {
 				this.tempZoneStart = { x: m.x, y: m.y };
@@ -93,8 +103,20 @@ const Rendering = {
 				this.isDragging = true;
 				return;
 			}
+			
+			if (this.drawMode === 'bond') {
+				for (let i = 0; i < bodies.length; i++) {
+					const b = bodies[i];
+					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
+					if (dist < Math.max(b.radius, 10 / this.zoom)) {
+						this.tempBondStart = i;
+						this.isDragging = true;
+						return;
+					}
+				}
+				return;
+			}
 
-			const bodies = window.App.sim.bodies;
 			this.wasPaused = window.App.sim.paused;
 
 			if (this.selectedBodyIdx !== -1 && bodies[this.selectedBodyIdx]) {
@@ -138,11 +160,13 @@ const Rendering = {
 				this.selectedBodyIdx = -1;
 				this.selectedZoneId = null;
 				this.selectedViscosityZoneId = null;
+				this.selectedBondId = null;
 				
 				if (window.App.ui) {
 					if (window.App.ui.highlightBody) window.App.ui.highlightBody(-1);
 					if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 					if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
+					if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
 				}
 
 				if (!this.enableTracking) {
@@ -161,6 +185,8 @@ const Rendering = {
 			const bodies = window.App.sim.bodies;
 
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity') && this.tempZoneStart) {
+				this.tempZoneCurrent = { x: m.x, y: m.y };
+			} else if (this.drawMode === 'bond' && this.tempBondStart !== null) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 			} else if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
 				const b = bodies[this.selectedBodyIdx];
@@ -185,7 +211,7 @@ const Rendering = {
 			}
 		});
 
-		window.addEventListener('mouseup', () => {
+		window.addEventListener('mouseup', (e) => {
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity') && this.tempZoneStart && this.tempZoneCurrent) {
 				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
 				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
@@ -210,16 +236,43 @@ const Rendering = {
 				this.isDragging = false;
 				return;
 			}
+			
+			if (this.drawMode === 'bond' && this.tempBondStart !== null) {
+				const m = getMouseWorldPos(e.clientX, e.clientY);
+				const bodies = window.App.sim.bodies;
+				let targetIdx = -1;
+				
+				for (let i = 0; i < bodies.length; i++) {
+					const b = bodies[i];
+					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
+					if (dist < Math.max(b.radius, 10 / this.zoom)) {
+						targetIdx = i;
+						break;
+					}
+				}
+
+				if (targetIdx !== -1 && targetIdx !== this.tempBondStart) {
+					window.App.sim.addElasticBond(this.tempBondStart, targetIdx);
+					if (window.App.ui && window.App.ui.refreshElasticBondList) {
+						window.App.ui.refreshElasticBondList();
+					}
+				}
+				
+				this.tempBondStart = null;
+				this.tempZoneCurrent = null;
+				this.isDragging = false;
+				return;
+			}
 
 			if ((this.dragMode === 'body' || this.dragMode === 'vector') && this.isDragging) {
 				window.App.sim.paused = this.wasPaused;
 			}
 			this.isDragging = false;
 			this.dragMode = null;
-			this.canvas.style.cursor = 'default';
+			this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
 		});
 	},
-
+	
 	drawViscosityZones: function(zones) {
 		this.ctx.lineWidth = 1 / this.zoom;
 		
@@ -382,7 +435,45 @@ const Rendering = {
 			f_fx: formulaFx, f_fy: formulaFy
 		};
 	},
+	
+	drawElasticBonds: function(bonds) {
+		const bodies = window.App.sim.bodies;
+		this.ctx.lineCap = 'round';
 
+		for (const bond of bonds) {
+			const b1 = bodies[bond.body1];
+			const b2 = bodies[bond.body2];
+			if (!b1 || !b2) continue;
+
+			const isSelected = (bond.id === this.selectedBondId);
+			
+			this.ctx.beginPath();
+			this.ctx.moveTo(b1.x, b1.y);
+			this.ctx.lineTo(b2.x, b2.y);
+			
+			this.ctx.lineWidth = (isSelected ? 3 : 1.5) / this.zoom;
+			this.ctx.strokeStyle = bond.color || '#ffffff';
+			this.ctx.globalAlpha = bond.enabled ? 0.8 : 0.2;
+			
+			this.ctx.stroke();
+			this.ctx.globalAlpha = 1.0;
+		}
+
+		if (this.drawMode === 'bond' && this.tempBondStart !== null && this.tempZoneCurrent) {
+			const b1 = bodies[this.tempBondStart];
+			if (b1) {
+				this.ctx.beginPath();
+				this.ctx.moveTo(b1.x, b1.y);
+				this.ctx.lineTo(this.tempZoneCurrent.x, this.tempZoneCurrent.y);
+				this.ctx.lineWidth = 1 / this.zoom;
+				this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+				this.ctx.strokeStyle = '#fff';
+				this.ctx.stroke();
+				this.ctx.setLineDash([]);
+			}
+		}
+	},
+	
 	drawFields: function(bodies) {
 		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return
 
@@ -633,6 +724,7 @@ const Rendering = {
 		this.drawGrid();
 		this.drawPeriodicZones(window.App.sim.periodicZones);
 		this.drawViscosityZones(window.App.sim.viscosityZones);
+		this.drawElasticBonds(window.App.sim.elasticBonds);
 		this.drawFields(window.App.sim.bodies);
 		this.drawBarycenter(window.App.sim.bodies);
 		this.drawTrails(window.App.sim.bodies);
@@ -683,7 +775,7 @@ const Rendering = {
 				this.ctx.fillStyle = '#fff';
 				this.ctx.fill();
 
-				const predictionPath = window.App.sim.predictPath(i, 300, window.App.sim.dt);
+				const predictionPath = window.App.sim.predictPath(i, this.predictionLength, window.App.sim.dt);
 				this.drawPredictionLine(predictionPath);
 			}
 		}

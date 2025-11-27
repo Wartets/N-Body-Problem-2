@@ -37,6 +37,7 @@ const Simulation = {
 	bodies: [],
 	periodicZones: [],
 	viscosityZones: [],
+	elasticBonds: [],
 	G: 0.5,
 	c: 50.0,
 	Ke: 10.0,
@@ -65,8 +66,9 @@ const Simulation = {
 		this.bodies = [];
 		this.periodicZones = [];
 		this.viscosityZones = [];
+		this.elasticBonds = [];
 	},
-
+	
 	addBody: function(m, x, y, vx, vy, col, name, ax = 0, ay = 0,
 					 charge = 0, magMoment = 0, restitution = 1.0, 
 					 lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0) {
@@ -82,6 +84,16 @@ const Simulation = {
 	removeBody: function(index) {
 		if (index >= 0 && index < this.bodies.length) {
 			this.bodies.splice(index, 1);
+			
+			for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
+				const b = this.elasticBonds[i];
+				if (b.body1 === index || b.body2 === index) {
+					this.elasticBonds.splice(i, 1);
+				} else {
+					if (b.body1 > index) b.body1--;
+					if (b.body2 > index) b.body2--;
+				}
+			}
 		}
 	},
 
@@ -119,6 +131,30 @@ const Simulation = {
 
 	removeViscosityZone: function(id) {
 		this.viscosityZones = this.viscosityZones.filter(z => z.id !== id);
+	},
+	
+	addElasticBond: function(b1Idx, b2Idx, stiffness, length, damping, color, name) {
+		if (b1Idx === b2Idx || b1Idx < 0 || b2Idx < 0) return;
+		
+		const b1 = this.bodies[b1Idx];
+		const b2 = this.bodies[b2Idx];
+		const dist = Math.sqrt((b2.x - b1.x)**2 + (b2.y - b1.y)**2);
+
+		this.elasticBonds.push({
+			id: Date.now() + Math.random(),
+			name: name || `Bond ${this.elasticBonds.length + 1}`,
+			body1: b1Idx,
+			body2: b2Idx,
+			stiffness: stiffness || 0.5,
+			damping: damping || 0.1,
+			length: length >= 0 ? length : dist,
+			color: color || '#ffffff',
+			enabled: true
+		});
+	},
+
+	removeElasticBond: function(id) {
+		this.elasticBonds = this.elasticBonds.filter(b => b.id !== id);
 	},
 	
 	createSolarSystem: function() {
@@ -269,6 +305,39 @@ const Simulation = {
 					bodies[i].ay += fy / bodies[i].mass;
 				}
 			}
+		}
+
+		for (const bond of this.elasticBonds) {
+			if (!bond.enabled) continue;
+			const b1 = bodies[bond.body1];
+			const b2 = bodies[bond.body2];
+			if (!b1 || !b2) continue;
+
+			const dx = b2.x - b1.x;
+			const dy = b2.y - b1.y;
+			const dist = Math.sqrt(dx*dx + dy*dy);
+			if (dist === 0) continue;
+
+			const stretch = dist - bond.length;
+			const forceMag = bond.stiffness * stretch;
+			
+			const nx = dx / dist;
+			const ny = dy / dist;
+
+			const dvx = b2.vx - b1.vx;
+			const dvy = b2.vy - b1.vy;
+			const relVel = dvx * nx + dvy * ny;
+			const dampForce = bond.damping * relVel;
+
+			const totalForce = forceMag + dampForce;
+			
+			const fx = totalForce * nx;
+			const fy = totalForce * ny;
+
+			b1.ax += fx / b1.mass;
+			b1.ay += fy / b1.mass;
+			b2.ax -= fx / b2.mass;
+			b2.ay -= fy / b2.mass;
 		}
 
 		for (let i = 0; i < count; i++) {
@@ -506,6 +575,37 @@ const Simulation = {
 						tempBodies[i].ay += fy / tempBodies[i].mass;
 					}
 				}
+			}
+
+			for (const bond of this.elasticBonds) {
+				if (!bond.enabled) continue;
+				const b1 = tempBodies[bond.body1];
+				const b2 = tempBodies[bond.body2];
+				if (!b1 || !b2) continue;
+
+				const dx = b2.x - b1.x;
+				const dy = b2.y - b1.y;
+				const dist = Math.sqrt(dx*dx + dy*dy);
+				if (dist === 0) continue;
+
+				const stretch = dist - bond.length;
+				const forceMag = bond.stiffness * stretch;
+				const nx = dx / dist;
+				const ny = dy / dist;
+
+				const dvx = b2.vx - b1.vx;
+				const dvy = b2.vy - b1.vy;
+				const relVel = dvx * nx + dvy * ny;
+				const dampForce = bond.damping * relVel;
+				const totalForce = forceMag + dampForce;
+				
+				const fx = totalForce * nx;
+				const fy = totalForce * ny;
+
+				b1.ax += fx / b1.mass;
+				b1.ay += fy / b1.mass;
+				b2.ax -= fx / b2.mass;
+				b2.ay -= fy / b2.mass;
 			}
 
 			for (let i = 0; i < count; i++) {

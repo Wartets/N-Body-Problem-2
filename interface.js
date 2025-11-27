@@ -660,6 +660,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		originalAddBody(...args);
 		refreshBodyList();
 	};
+	
+	const originalRemoveBody = Sim.removeBody.bind(Sim);
+	Sim.removeBody = function(index) {
+		originalRemoveBody(index);
+		refreshBodyList();
+		refreshElasticBondList();
+	};
 
 	const originalReset = Sim.reset.bind(Sim);
 	Sim.reset = function() {
@@ -667,6 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		refreshBodyList();
 		refreshZoneList();
 		refreshViscosityZoneList();
+		refreshElasticBondList();
 	};
 	
 	window.App.ui = {
@@ -727,7 +735,136 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 		},
 	};
+	
+	const toggleBondToolBtn = document.getElementById('toggleBondToolBtn');
+	const bondsListContainer = document.getElementById('bondsListContainer');
+	
+	if (toggleBondToolBtn) {
+		toggleBondToolBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'bond') {
+				Render.drawMode = 'none';
+				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+				toggleBondToolBtn.classList.remove('primary');
+				toggleBondToolBtn.classList.add('secondary');
+				Render.canvas.style.cursor = 'default';
+			} else {
+				Render.drawMode = 'bond';
+				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (On)';
+				toggleBondToolBtn.classList.remove('secondary');
+				toggleBondToolBtn.classList.add('primary');
+				
+				if (toggleViscosityZoneBtn) {
+					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+					toggleViscosityZoneBtn.classList.remove('primary');
+					toggleViscosityZoneBtn.classList.add('secondary');
+				}
+				if (toggleZoneDrawBtn) {
+					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+					toggleZoneDrawBtn.classList.remove('primary');
+					toggleZoneDrawBtn.classList.add('secondary');
+				}
+				
+				Render.canvas.style.cursor = 'crosshair';
+			}
+		});
+		
+		if (toggleViscosityZoneBtn) {
+			toggleViscosityZoneBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'viscosity') {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		
+		if (toggleZoneDrawBtn) {
+			toggleZoneDrawBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'periodic') {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+			});
+		}
+	}
 
+	function refreshElasticBondList() {
+		if (!bondsListContainer) return;
+		bondsListContainer.innerHTML = '';
+		Sim.elasticBonds.forEach((bond) => {
+			const div = document.createElement('div');
+			div.className = 'zone-card';
+			if (Render.selectedBondId === bond.id) {
+				div.classList.add('active');
+			}
+			
+			const b1Name = Sim.bodies[bond.body1] ? Sim.bodies[bond.body1].name : `#${bond.body1}`;
+			const b2Name = Sim.bodies[bond.body2] ? Sim.bodies[bond.body2].name : `#${bond.body2}`;
+			
+			div.addEventListener('click', (e) => {
+				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+					Render.selectedBondId = bond.id;
+					refreshElasticBondList();
+				}
+			});
+
+			div.innerHTML = `
+				<div class="zone-header">
+					<div style="display: flex; align-items: center; gap: 5px;">
+						<input type="color" class="bond-color" value="${bond.color || '#ffffff'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+						<input type="text" class="bond-name" value="${bond.name}" style="width: 80px;">
+					</div>
+					<div style="display:flex; align-items:center; gap:8px;">
+						<label class="toggle-row" style="margin:0;">
+							<input type="checkbox" class="inp-bond-enabled" ${bond.enabled ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+						</label>
+						<button class="btn-delete" title="Remove Bond"><i class="fa-solid fa-trash"></i></button>
+					</div>
+				</div>
+				<div style="font-size:9px; color:var(--text-secondary); margin-bottom:4px;">
+					${b1Name} <i class="fa-solid fa-link"></i> ${b2Name}
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+					<div class="mini-input-group"><label>Stiffness (k)</label><input type="number" class="inp-bstiff" value="${bond.stiffness.toFixed(2)}" step="0.01"></div>
+					<div class="mini-input-group"><label>Damping</label><input type="number" class="inp-bdamp" value="${bond.damping.toFixed(2)}" step="0.01"></div>
+					<div class="mini-input-group"><label>Length</label><input type="number" class="inp-blen" value="${bond.length.toFixed(1)}" step="1"></div>
+				</div>
+			`;
+			
+			div.querySelector('.inp-bond-enabled').addEventListener('change', (e) => { bond.enabled = e.target.checked; });
+			div.querySelector('.bond-color').addEventListener('input', (e) => { bond.color = e.target.value; });
+			div.querySelector('.bond-name').addEventListener('change', (e) => { bond.name = e.target.value; });
+			
+			const inpStiff = div.querySelector('.inp-bstiff');
+			const inpDamp = div.querySelector('.inp-bdamp');
+			const inpLen = div.querySelector('.inp-blen');
+			
+			const updateBond = () => {
+				bond.stiffness = parseFloat(inpStiff.value) || 0;
+				bond.damping = parseFloat(inpDamp.value) || 0;
+				bond.length = parseFloat(inpLen.value) || 0;
+			};
+			
+			[inpStiff, inpDamp, inpLen].forEach(inp => {
+				inp.addEventListener('change', updateBond);
+				inp.addEventListener('input', updateBond);
+			});
+			
+			div.querySelector('.btn-delete').addEventListener('click', (e) => {
+				e.stopPropagation();
+				Sim.removeElasticBond(bond.id);
+				if (Render.selectedBondId === bond.id) Render.selectedBondId = null;
+				refreshElasticBondList();
+			});
+
+			bondsListContainer.appendChild(div);
+		});
+	}
+
+	window.App.ui.refreshElasticBondList = refreshElasticBondList;
+	
 	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
 	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
@@ -1279,6 +1416,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	bindRange('fieldPrecSlider', 'fieldPrecVal', Render, 'fieldPrecision');
 	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
+	
+	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
+	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
 	
 	Render.init();
 	refreshFieldList(); 

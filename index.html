@@ -102,6 +102,12 @@
 					</div>
 					<input type="range" id="trailPrecSlider" min="1" max="10" step="1">
 					
+					<div class="control-row" style="margin-top: 4px;">
+						<label>Prediction Length</label>
+						<span id="predictionLenVal" class="value-display"></span>
+					</div>
+					<input type="range" id="predictionLenSlider" min="0" max="70000" step="100">
+					
 					<div class="divider-sub"></div>
 
 					<div class="section-header" style="margin-top: 8px;">Field Visualization</div>
@@ -270,6 +276,18 @@
 				<div class="divider-sub"></div>
 				
 				<div id="viscosityZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+				</div>
+			</div>
+			
+			<div class="control-section">
+				<div class="section-header">Elastic Bonds</div>
+				<button id="toggleBondToolBtn" class="btn secondary">
+					<i class="fa-solid fa-link"></i> Link Bodies (Off)
+				</button>
+				
+				<div class="divider-sub"></div>
+				
+				<div id="bondsListContainer" style="display: flex; flex-direction: column; gap: 8px;">
 				</div>
 			</div>
 		</div>
