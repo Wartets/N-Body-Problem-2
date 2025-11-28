@@ -275,7 +275,8 @@ const Rendering = {
 				}
 
 				if (targetIdx !== -1 && targetIdx !== this.tempBondStart) {
-					window.App.sim.addElasticBond(this.tempBondStart, targetIdx);
+					const config = window.App.ui && window.App.ui.getBondConfig ? window.App.ui.getBondConfig() : {};
+					window.App.sim.addElasticBond(this.tempBondStart, targetIdx, config);
 					if (window.App.ui && window.App.ui.refreshElasticBondList) {
 						window.App.ui.refreshElasticBondList();
 					}

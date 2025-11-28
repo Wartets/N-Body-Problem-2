@@ -923,7 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			const b2Name = Sim.bodies[bond.body2] ? Sim.bodies[bond.body2].name : `#${bond.body2}`;
 			
 			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch') && e.target.tagName !== 'SELECT') {
 					Render.selectedBondId = bond.id;
 					refreshElasticBondList();
 				}
@@ -946,28 +946,52 @@ document.addEventListener('DOMContentLoaded', () => {
 				<div style="font-size:9px; color:var(--text-secondary); margin-bottom:4px;">
 					${b1Name} <i class="fa-solid fa-link"></i> ${b2Name}
 				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
 					<div class="mini-input-group"><label>Stiffness (k)</label><input type="number" class="inp-bstiff" value="${bond.stiffness.toFixed(2)}" step="0.01"></div>
 					<div class="mini-input-group"><label>Damping</label><input type="number" class="inp-bdamp" value="${bond.damping.toFixed(2)}" step="0.01"></div>
 					<div class="mini-input-group"><label>Length</label><input type="number" class="inp-blen" value="${bond.length.toFixed(1)}" step="1"></div>
+					<div class="mini-input-group"><label>Type</label>
+						<select class="inp-btype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
+							<option value="spring" ${bond.type === 'spring' ? 'selected' : ''}>Spring</option>
+							<option value="rope" ${bond.type === 'rope' ? 'selected' : ''}>Rope</option>
+							<option value="chain" ${bond.type === 'chain' ? 'selected' : ''}>Chain</option>
+						</select>
+					</div>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+					<div class="mini-input-group"><label>Non-Linearity</label><input type="number" class="inp-bnonlin" value="${(bond.nonLinearity || 1).toFixed(2)}" step="0.1"></div>
+					<div class="mini-input-group"><label>Break Tension</label><input type="number" class="inp-bbreak" value="${(bond.breakTension || -1)}" step="1"></div>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+					<div class="mini-input-group"><label>Active Amp</label><input type="number" class="inp-bactivea" value="${(bond.activeAmp || 0).toFixed(2)}" step="0.05"></div>
+					<div class="mini-input-group"><label>Active Freq</label><input type="number" class="inp-bactivef" value="${(bond.activeFreq || 0).toFixed(2)}" step="0.1"></div>
 				</div>
 			`;
 			
 			div.querySelector('.inp-bond-enabled').addEventListener('change', (e) => { bond.enabled = e.target.checked; });
 			div.querySelector('.bond-color').addEventListener('input', (e) => { bond.color = e.target.value; });
 			div.querySelector('.bond-name').addEventListener('change', (e) => { bond.name = e.target.value; });
+			div.querySelector('.inp-btype').addEventListener('change', (e) => { bond.type = e.target.value; });
 			
 			const inpStiff = div.querySelector('.inp-bstiff');
 			const inpDamp = div.querySelector('.inp-bdamp');
 			const inpLen = div.querySelector('.inp-blen');
+			const inpNonLin = div.querySelector('.inp-bnonlin');
+			const inpBreak = div.querySelector('.inp-bbreak');
+			const inpAmp = div.querySelector('.inp-bactivea');
+			const inpFreq = div.querySelector('.inp-bactivef');
 			
 			const updateBond = () => {
 				bond.stiffness = parseFloat(inpStiff.value) || 0;
 				bond.damping = parseFloat(inpDamp.value) || 0;
 				bond.length = parseFloat(inpLen.value) || 0;
+				bond.nonLinearity = parseFloat(inpNonLin.value) || 1;
+				bond.breakTension = parseFloat(inpBreak.value) || -1;
+				bond.activeAmp = parseFloat(inpAmp.value) || 0;
+				bond.activeFreq = parseFloat(inpFreq.value) || 0;
 			};
 			
-			[inpStiff, inpDamp, inpLen].forEach(inp => {
+			[inpStiff, inpDamp, inpLen, inpNonLin, inpBreak, inpAmp, inpFreq].forEach(inp => {
 				inp.addEventListener('change', updateBond);
 				inp.addEventListener('input', updateBond);
 			});
@@ -1290,6 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				Sim.removeFieldZone(zone.id);
 				if (Render.selectedFieldZoneId === zone.id) Render.selectedFieldZoneId = null;
 				refreshFieldZoneList();
+				Sim.removeBody(index);
 			});
 
 			fieldZonesListContainer.appendChild(div);
@@ -1693,6 +1718,42 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 	initSimPresets();
+	
+	const bondPresets = {
+		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
+		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
+	};
+	
+	const bondToolBtn = document.getElementById('toggleBondToolBtn');
+	if (bondToolBtn) {
+		const presetContainer = document.createElement('div');
+		presetContainer.style.marginBottom = '8px';
+		presetContainer.innerHTML = `
+			<div class="control-row" style="margin-bottom:4px;"><label>Bond Preset</label></div>
+			<select id="bondPresetSelect" style="width:100%; padding:6px; background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:3px; outline:none; font-family:var(--font-ui); font-size:11px;">
+				<option value="spring">Spring (Default)</option>
+				<option value="rope">Rope (Tension only)</option>
+				<option value="rod">Rigid Rod</option>
+				<option value="chain">Chain (Non-linear)</option>
+				<option value="muscle">Muscle (Active)</option>
+				<option value="weak">Weak Link (Breakable)</option>
+			</select>
+		`;
+		
+		bondToolBtn.parentNode.insertBefore(presetContainer, bondToolBtn.nextSibling.nextSibling); // Insert after divider-sub if present
+	}
+	
+	window.App.ui.getBondConfig = function() {
+		const select = document.getElementById('bondPresetSelect');
+		if (select && bondPresets[select.value]) {
+			return bondPresets[select.value];
+		}
+		return {};
+	};
 	
 	const injectCurrentBody = () => {
 		const m = parseFloat(document.getElementById('newMass').value);

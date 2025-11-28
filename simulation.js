@@ -137,28 +137,52 @@ const Simulation = {
 		this.viscosityZones = this.viscosityZones.filter(z => z.id !== id);
 	},
 	
-	addElasticBond: function(b1Idx, b2Idx, stiffness, length, damping, color, name) {
+	addElasticBond: function(b1Idx, b2Idx, config = {}) {
 		if (b1Idx === b2Idx || b1Idx < 0 || b2Idx < 0) return;
 		
 		const b1 = this.bodies[b1Idx];
 		const b2 = this.bodies[b2Idx];
 		const dist = Math.sqrt((b2.x - b1.x)**2 + (b2.y - b1.y)**2);
 
+		if (typeof config === 'number') {
+			const stiffness = config;
+			const length = arguments[3];
+			const damping = arguments[4];
+			config = { stiffness: stiffness };
+			if (typeof length === 'number') config.length = length;
+			if (typeof damping === 'number') config.damping = damping;
+		}
+
+		const defaults = {
+			stiffness: 0.5,
+			damping: 0.1,
+			length: dist,
+			color: '#ffffff',
+			name: `Bond ${this.elasticBonds.length + 1}`,
+			type: 'spring',
+			nonLinearity: 1.0,
+			breakTension: -1,
+			activeAmp: 0,
+			activeFreq: 0
+		};
+		
+		const settings = { ...defaults, ...config };
+		if (settings.length < 0) settings.length = dist;
+
 		this.elasticBonds.push({
 			id: Date.now() + Math.random(),
-			name: name || `Bond ${this.elasticBonds.length + 1}`,
 			body1: b1Idx,
 			body2: b2Idx,
-			stiffness: stiffness || 0.5,
-			damping: damping || 0.1,
-			length: length >= 0 ? length : dist,
-			color: color || '#ffffff',
-			enabled: true
+			enabled: true,
+			...settings
 		});
 	},
 
 	removeElasticBond: function(id) {
-		this.elasticBonds = this.elasticBonds.filter(b => b.id !== id);
+		const index = this.elasticBonds.findIndex(b => b.id === id);
+		if (index !== -1) {
+			this.elasticBonds.splice(index, 1);
+		}
 	},
 	
 	addSolidBarrier: function(x1, y1, x2, y2, restitution, color, name) {
@@ -340,8 +364,10 @@ const Simulation = {
 			}
 		}
 
-		for (const bond of this.elasticBonds) {
+		for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
+			const bond = this.elasticBonds[i];
 			if (!bond.enabled) continue;
+			
 			const b1 = bodies[bond.body1];
 			const b2 = bodies[bond.body2];
 			if (!b1 || !b2) continue;
@@ -353,9 +379,32 @@ const Simulation = {
 			const dist = Math.sqrt(dx*dx + dy*dy);
 			if (dist === 0) continue;
 
-			const stretch = dist - bond.length;
-			const forceMag = bond.stiffness * stretch;
+			let targetLen = bond.length;
+			if (bond.activeAmp !== 0 && bond.activeFreq !== 0) {
+				const phase = bond.activeFreq * this.tickCount * dt * 0.1;
+				targetLen = bond.length * (1 + bond.activeAmp * Math.sin(phase));
+			}
+
+			const displacement = dist - targetLen;
 			
+			if (bond.type === 'rope' || bond.type === 'chain') {
+				if (displacement <= 0) continue;
+			}
+
+			let forceMag = 0;
+			
+			if (bond.nonLinearity !== 1 && bond.nonLinearity > 0) {
+				const sign = displacement >= 0 ? 1 : -1;
+				forceMag = bond.stiffness * sign * Math.pow(Math.abs(displacement), bond.nonLinearity);
+			} else {
+				forceMag = bond.stiffness * displacement;
+			}
+			
+			if (bond.breakTension > 0 && forceMag > bond.breakTension) {
+				this.elasticBonds.splice(i, 1);
+				continue;
+			}
+
 			const nx = dx / dist;
 			const ny = dy / dist;
 
@@ -767,8 +816,22 @@ const Simulation = {
 				const dist = Math.sqrt(dx*dx + dy*dy);
 				if (dist === 0) continue;
 
-				const stretch = dist - bond.length;
-				const forceMag = bond.stiffness * stretch;
+				let targetLen = bond.length;
+				if (bond.activeAmp !== 0 && bond.activeFreq !== 0) {
+					targetLen = bond.length;
+				}
+
+				const displacement = dist - targetLen;
+				if ((bond.type === 'rope' || bond.type === 'chain') && displacement <= 0) continue;
+
+				let forceMag = 0;
+				if (bond.nonLinearity !== 1 && bond.nonLinearity > 0) {
+					const sign = displacement >= 0 ? 1 : -1;
+					forceMag = bond.stiffness * sign * Math.pow(Math.abs(displacement), bond.nonLinearity);
+				} else {
+					forceMag = bond.stiffness * displacement;
+				}
+
 				const nx = dx / dist;
 				const ny = dy / dist;
 
