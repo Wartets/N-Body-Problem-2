@@ -314,8 +314,8 @@ const Simulation = {
 		}
 	},
 	
-	update: function() {
-		if (this.paused) return;
+	update: function(force = false) {
+		if (this.paused && !force) return;
 
 		const bodies = this.bodies;
 		let count = bodies.length;

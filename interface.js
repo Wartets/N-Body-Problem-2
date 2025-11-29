@@ -821,6 +821,113 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
+	const setupInteractiveLabel = (label, input, constraintType = 'default') => {
+		if (!label || !input || 'ontouchstart' in window) return;
+
+		let isDragging = false;
+		let lastX = 0;
+
+		label.style.cursor = 'ew-resize';
+		label.title = "Cliquez et glissez pour changer la valeur. Maintenez Shift pour plus de précision, Ctrl pour plus de rapidité.";
+
+		const onMouseMove = (e) => {
+			if (!isDragging) return;
+
+			let currentValue = parseFloat(input.value);
+			if (isNaN(currentValue)) {
+				currentValue = 0;
+			}
+			
+			const dx = e.clientX - lastX;
+			lastX = e.clientX;
+
+			let effectiveSensitivity;
+			const absCurrent = Math.abs(currentValue);
+
+			if (absCurrent > 1000) effectiveSensitivity = 10;
+			else if (absCurrent > 100) effectiveSensitivity = 1;
+			else if (absCurrent > 10) effectiveSensitivity = 0.1;
+			else if (absCurrent >= 1 || currentValue === 0) effectiveSensitivity = 0.05;
+			else if (absCurrent > 0.1) effectiveSensitivity = 0.005;
+			else if (absCurrent > 0.01) effectiveSensitivity = 0.0005;
+			else if (absCurrent > 0.001) effectiveSensitivity = 0.00005;
+			else effectiveSensitivity = 1e-7;
+
+			if (e.shiftKey) effectiveSensitivity /= 10;
+			if (e.ctrlKey || e.metaKey) effectiveSensitivity *= 10;
+			if (e.altKey) effectiveSensitivity *= 100;
+
+			let newValue = currentValue + dx * effectiveSensitivity;
+			const minPositive = 1e-6;
+			
+			const allowsNegativeOne = constraintType === 'mass' || constraintType === 'lifetime' || constraintType === 'breakable';
+
+			if (allowsNegativeOne) {
+				if (currentValue >= minPositive && newValue <= 0) {
+					newValue = -1;
+				} else if (currentValue === -1 && dx > 0) {
+					newValue = minPositive;
+				} else if (currentValue === -1 && dx <= 0) {
+					newValue = -1;
+				}
+			}
+
+			if (constraintType === 'positive') {
+				newValue = Math.max(minPositive, newValue);
+			} else if (constraintType === 'non-negative') {
+				newValue = Math.max(0, newValue);
+			}
+
+			if (newValue > 0 && newValue < minPositive) {
+				newValue = minPositive;
+			}
+			
+			const absNew = Math.abs(newValue);
+			let precision;
+			if (newValue === -1 || absNew === 0 || absNew >= 1) {
+				precision = 2;
+			} else if (absNew > 0.001) {
+				precision = 4;
+			} else {
+				precision = 6;
+			}
+			
+			input.value = (newValue === -1) ? -1 : formatVal(newValue, precision);
+			input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+		};
+
+		const onMouseUp = () => {
+			isDragging = false;
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+			input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+		};
+
+		label.addEventListener('mousedown', (e) => {
+			if (e.button !== 0) return;
+			isDragging = true;
+			lastX = e.clientX;
+			
+			document.body.style.cursor = 'ew-resize';
+			document.body.style.userSelect = 'none';
+			e.preventDefault();
+
+			window.addEventListener('mousemove', onMouseMove);
+			window.addEventListener('mouseup', onMouseUp);
+		});
+	};
+	
+	const constraintMap = {
+		'newMass': 'mass', 'newRadius': 'positive', 'newRestitution': 'non-negative',
+		'newCharge': 'default', 'newMagMoment': 'default', 'newRotationSpeed': 'default',
+		'newTemperature': 'non-negative', 'newYoungModulus': 'non-negative',
+		'newFriction': 'non-negative', 'newLifetime': 'lifetime',
+		'newX': 'default', 'newY': 'default', 'newVX': 'default', 'newVY': 'default',
+		'newAX': 'default', 'newAY': 'default'
+	};
+	
 	const originalReset = Sim.reset.bind(Sim);
 	const originalAddBody = Sim.addBody.bind(Sim);
 	const originalRemoveBody = Sim.removeBody.bind(Sim);
@@ -949,6 +1056,26 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 			e.preventDefault();
 			playBtn.click();
+		} else if ((e.code === 'ArrowRight' || e.code === 'ArrowLeft') && Sim.paused) {
+			const activeEl = document.activeElement;
+			if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA') {
+				return;
+			}
+			e.preventDefault();
+			const steps = e.shiftKey ? 10 : 1;
+			
+			if (e.code === 'ArrowRight') {
+				for(let i = 0; i < steps; i++) {
+					Sim.update(true);
+				}
+			} else {
+				Sim.reverseTime();
+				for(let i = 0; i < steps; i++) {
+					Sim.update(true);
+				}
+				Sim.reverseTime();
+			}
+			Render.draw();
 		}
 	});
 	
@@ -1385,11 +1512,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const updatePhysics = () => {
 			const rawMass = parseFloat(inpMass.value);
-			body.mass = (rawMass === -1 || rawMass > 0) ? rawMass : 1;
+			body.mass = (rawMass === -1 || rawMass >= 1e-6) ? rawMass : 1e-6;
 			if (body.mass !== rawMass) inpMass.value = body.mass;
 
 			const rawRadius = parseFloat(inpRadius.value);
-			body.radius = rawRadius > 0.1 ? rawRadius : 2;
+			body.radius = rawRadius >= 1e-6 ? rawRadius : 1e-6;
 			if (body.radius !== rawRadius) inpRadius.value = body.radius;
 
 			body.x = parseFloat(inpX.value) || 0;
@@ -1430,7 +1557,27 @@ document.addEventListener('DOMContentLoaded', () => {
 		 inpRotSpeed, inpYoungMod, inpFriction].forEach(inp => {
 			addMathParsing(inp);
 			inp.addEventListener('change', updatePhysics);
+			inp.addEventListener('input', updatePhysics);
 			inp.addEventListener('mousedown', (e) => e.stopPropagation());
+		});
+		
+		const cardConstraintMap = {
+			'.inp-mass': 'mass', '.inp-radius': 'positive', '.inp-restitution': 'non-negative',
+			'.inp-temp': 'non-negative', '.inp-youngMod': 'non-negative', '.inp-friction': 'non-negative',
+			'.inp-lifetime': 'lifetime'
+		};
+
+		div.querySelectorAll('.mini-input-group').forEach(group => {
+			const label = group.querySelector('label');
+			const input = group.querySelector('input');
+			let constraint = 'default';
+			for (const selector in cardConstraintMap) {
+				if (input.matches(selector)) {
+					constraint = cardConstraintMap[selector];
+					break;
+				}
+			}
+			setupInteractiveLabel(label, input, constraint);
 		});
 		
 		div.addEventListener('dragstart', (e) => {
@@ -1719,6 +1866,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			viscosityZonesListContainer.appendChild(div);
+			
+			div.querySelectorAll('.mini-input-group').forEach(group => {
+				const label = group.querySelector('label');
+				const input = group.querySelector('input');
+				if (input) {
+					setupInteractiveLabel(label, input);
+				}
+			});
 		});
 	}
 	
@@ -1819,6 +1974,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			barriersListContainer.appendChild(div);
+			
+			div.querySelectorAll('.mini-input-group').forEach(group => {
+				const label = group.querySelector('label');
+				const input = group.querySelector('input');
+				if (input) {
+					setupInteractiveLabel(label, input);
+				}
+			});
 		});
 	}
 	
@@ -1909,13 +2072,13 @@ document.addEventListener('DOMContentLoaded', () => {
 			const inpFreq = div.querySelector('.inp-bactivef');
 			
 			const updateBond = () => {
-				bond.stiffness = parseFloat(inpStiff.value) || 0;
-				bond.damping = parseFloat(inpDamp.value) || 0;
-				bond.length = parseFloat(inpLen.value) || 0;
-				bond.nonLinearity = parseFloat(inpNonLin.value) || 1;
+				bond.stiffness = Math.max(0, parseFloat(inpStiff.value) || 0);
+				bond.damping = Math.max(0, parseFloat(inpDamp.value) || 0);
+				bond.length = Math.max(1e-6, parseFloat(inpLen.value) || 0);
+				bond.nonLinearity = Math.max(1e-6, parseFloat(inpNonLin.value) || 1);
 				bond.breakTension = parseFloat(inpBreak.value) || -1;
-				bond.activeAmp = parseFloat(inpAmp.value) || 0;
-				bond.activeFreq = parseFloat(inpFreq.value) || 0;
+				bond.activeAmp = Math.max(0, parseFloat(inpAmp.value) || 0);
+				bond.activeFreq = Math.max(0, parseFloat(inpFreq.value) || 0);
 			};
 			
 			[inpStiff, inpDamp, inpLen, inpNonLin, inpBreak, inpAmp, inpFreq].forEach(inp => {
@@ -1932,6 +2095,27 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			bondsListContainer.appendChild(div);
+			
+			const bondConstraintMap = {
+				'.inp-bstiff': 'non-negative', '.inp-bdamp': 'non-negative', '.inp-blen': 'positive',
+				'.inp-bnonlin': 'positive', '.inp-bbreak': 'breakable', '.inp-bactivea': 'non-negative',
+				'.inp-bactivef': 'non-negative'
+			};
+
+			div.querySelectorAll('.mini-input-group').forEach(group => {
+				const label = group.querySelector('label');
+				const input = group.querySelector('input, select');
+				if (input.tagName === 'INPUT') {
+					let constraint = 'default';
+					for (const selector in bondConstraintMap) {
+						if (input.matches(selector)) {
+							constraint = bondConstraintMap[selector];
+							break;
+						}
+					}
+					setupInteractiveLabel(label, input, constraint);
+				}
+			});
 		});
 	}
 	
@@ -2032,6 +2216,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			fieldZonesListContainer.appendChild(div);
+			
+			div.querySelectorAll('.mini-input-group').forEach(group => {
+				const label = group.querySelector('label');
+				const input = group.querySelector('input');
+				if (input) {
+					setupInteractiveLabel(label, input);
+				}
+			});
 		});
 	}
 	
@@ -2137,6 +2329,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			zonesListContainer.appendChild(div);
+			
+			div.querySelectorAll('.mini-input-group').forEach(group => {
+				const label = group.querySelector('label');
+				const input = group.querySelector('input');
+				if (input) {
+					setupInteractiveLabel(label, input);
+				}
+			});
 		});
 	}
 	
@@ -2283,12 +2483,16 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
 
 	inputsToParse.forEach(id => {
-		const el = document.getElementById(id);
-		if (el) {
-			addMathParsing(el);
+		const input = document.getElementById(id);
+		if (input) {
+			const wrapper = input.closest('.input-wrapper');
+			if (wrapper) {
+				const label = wrapper.querySelector('label');
+				setupInteractiveLabel(label, input, constraintMap[id]);
+			}
 		}
 	});
-
+	
 	initBodySorting();
 	initPresets();
 	initSimPresets();
