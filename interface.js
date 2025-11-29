@@ -807,6 +807,20 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
+	const setupCollapsibleList = (headerId, listContainerId, buttonId) => {
+		const header = document.getElementById(headerId);
+		const list = document.getElementById(listContainerId);
+		const button = document.getElementById(buttonId);
+
+		if (header && list && button) {
+			const toggle = () => {
+				const isHidden = list.classList.toggle('hidden-content');
+				button.innerHTML = isHidden ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+			};
+			header.addEventListener('click', toggle);
+		}
+	};
+	
 	const originalReset = Sim.reset.bind(Sim);
 	const originalAddBody = Sim.addBody.bind(Sim);
 	const originalRemoveBody = Sim.removeBody.bind(Sim);
@@ -1276,6 +1290,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		div.style.borderLeftColor = body.color;
 		div.dataset.index = index;
 		div.setAttribute('draggable', 'true');
+		
+		const isTracked = Render.trackedBodyIdx === index;
+		const trackBtnClass = isTracked ? 'active' : '';
+		const trackIconClass = isTracked ? 'fa-solid fa-eye' : 'fa-regular fa-eye';
 
 		div.innerHTML = `
 			<div class="card-header">
@@ -1285,6 +1303,7 @@ document.addEventListener('DOMContentLoaded', () => {
 						<input type="color" class="color-input-hidden" value="${body.color.startsWith('#') ? body.color : '#ffffff'}">
 					</div>
 					<input type="text" class="body-name-input" value="${body.name}">
+					<button class="btn-track btn-icon ${trackBtnClass}" title="Track Body"><i class="${trackIconClass}"></i></button>
 				</span>
 				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
 			</div>
@@ -1314,6 +1333,20 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 		
 		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
+		
+		const trackBtn = div.querySelector('.btn-track');
+		trackBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			if (Render.trackedBodyIdx === index) {
+				Render.trackedBodyIdx = -1;
+			} else {
+				Render.trackedBodyIdx = index;
+				Render.enableTracking = false;
+				document.getElementById('camTrackingBox').checked = false;
+			}
+			refreshBodyList();
+		});
+		trackBtn.addEventListener('mousedown', (e) => e.stopPropagation());
 
 		const colorInput = div.querySelector('.color-input-hidden');
 		const colorDot = div.querySelector('.body-color-dot');
@@ -1437,6 +1470,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			} else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) {
 				Render.selectedBodyIdx++;
 			}
+			
+			if (Render.trackedBodyIdx === draggedItemIndex) {
+				Render.trackedBodyIdx = targetIndex;
+			} else if (draggedItemIndex < targetIndex && Render.trackedBodyIdx > draggedItemIndex && Render.trackedBodyIdx <= targetIndex) {
+				Render.trackedBodyIdx--;
+			} else if (draggedItemIndex > targetIndex && Render.trackedBodyIdx < draggedItemIndex && Render.trackedBodyIdx >= targetIndex) {
+				Render.trackedBodyIdx++;
+			}
 
 			refreshBodyList();
 		});
@@ -1451,7 +1492,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		Sim.bodies.forEach((body, index) => {
 			const card = createBodyCard(body, index);
 			card.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete')) {
+				if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
 					Render.selectedBodyIdx = index;
 					window.App.ui.highlightBody(index);
 				}
@@ -1579,7 +1620,21 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshViscosityZoneList() {
+		const collapsible = document.getElementById('viscosityZonesCollapsible');
+		const countSpan = document.getElementById('viscosityZoneListCount');
+
 		viscosityZonesListContainer.innerHTML = '';
+		const zoneCount = Sim.viscosityZones.length;
+
+		if (countSpan) countSpan.textContent = zoneCount;
+
+		if (zoneCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
 		Sim.viscosityZones.forEach((zone) => {
 			const div = document.createElement('div');
 			div.className = 'zone-card';
@@ -1668,8 +1723,22 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshSolidBarrierList() {
+		const collapsible = document.getElementById('barriersCollapsible');
+		const countSpan = document.getElementById('barrierListCount');
+
 		if (!barriersListContainer) return;
 		barriersListContainer.innerHTML = '';
+
+		const barrierCount = Sim.solidBarriers.length;
+		if (countSpan) countSpan.textContent = barrierCount;
+
+		if (barrierCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
 		Sim.solidBarriers.forEach((barrier) => {
 			const div = document.createElement('div');
 			div.className = 'zone-card';
@@ -1754,8 +1823,22 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshElasticBondList() {
+		const collapsible = document.getElementById('bondsCollapsible');
+		const countSpan = document.getElementById('bondListCount');
+
 		if (!bondsListContainer) return;
 		bondsListContainer.innerHTML = '';
+
+		const bondCount = Sim.elasticBonds.length;
+		if (countSpan) countSpan.textContent = bondCount;
+		
+		if (bondCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+		
 		Sim.elasticBonds.forEach((bond) => {
 			const div = document.createElement('div');
 			div.className = 'zone-card';
@@ -1853,8 +1936,22 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshFieldZoneList() {
+		const collapsible = document.getElementById('fieldZonesCollapsible');
+		const countSpan = document.getElementById('fieldZoneListCount');
+
 		if (!fieldZonesListContainer) return;
 		fieldZonesListContainer.innerHTML = '';
+		
+		const zoneCount = Sim.fieldZones.length;
+		if (countSpan) countSpan.textContent = zoneCount;
+
+		if (zoneCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
 		Sim.fieldZones.forEach((zone) => {
 			const div = document.createElement('div');
 			div.className = 'zone-card';
@@ -1937,9 +2034,23 @@ document.addEventListener('DOMContentLoaded', () => {
 			fieldZonesListContainer.appendChild(div);
 		});
 	}
-
+	
 	function refreshZoneList() {
+		const collapsible = document.getElementById('periodicZonesCollapsible');
+		const countSpan = document.getElementById('periodicZoneListCount');
+
 		zonesListContainer.innerHTML = '';
+		const zoneCount = Sim.periodicZones.length;
+		
+		if (countSpan) countSpan.textContent = zoneCount;
+
+		if (zoneCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
 		Sim.periodicZones.forEach((zone) => {
 			const div = document.createElement('div');
 			div.className = 'zone-card';
@@ -2130,6 +2241,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		return {};
 	};
 	
+	setupCollapsibleList('periodicZonesListHeader', 'zonesListContainer', 'togglePeriodicZonesListBtn');
+	setupCollapsibleList('viscosityZonesListHeader', 'viscosityZonesListContainer', 'toggleViscosityZonesListBtn');
+	setupCollapsibleList('bondsListHeader', 'bondsListContainer', 'toggleBondsListBtn');
+	setupCollapsibleList('barriersListHeader', 'barriersListContainer', 'toggleBarriersListBtn');
+	setupCollapsibleList('fieldZonesListHeader', 'fieldZonesListContainer', 'toggleFieldZonesListBtn');
+	
 	bindRange('dtSlider', 'dtVal', Sim, 'dt', true, 2);
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
@@ -2139,7 +2256,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindRange('gridMinDistSlider', 'gridMinDistVal', Render, 'gridMinDist');
 
 	bindToggle('showTrailsBox', Sim, 'showTrails');
-	bindToggle('camTrackingBox', Render, 'enableTracking');
+	bindToggle('camTrackingBox', Render, 'enableTracking', (checked) => {
+		if (checked) {
+			Render.trackedBodyIdx = -1;
+			refreshBodyList();
+		}
+	});
 	bindToggle('camAutoZoomBox', Render, 'enableAutoZoom', (checked) => {
 		if (checked) Render.userZoomFactor = 1.0;
 	});

@@ -471,6 +471,13 @@ input[type=range]::-moz-range-thumb {
 }
 .btn-delete:hover { color: var(--danger); }
 
+.btn-icon.active {
+	color: var(--accent-hover);
+	background-color: rgba(45, 140, 240, 0.2);
+	border-radius: 4px;
+	padding: 2px 4px;
+}
+
 .card-grid {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);

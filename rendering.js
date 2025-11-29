@@ -464,13 +464,19 @@ const Rendering = {
 		if (this.enableAutoZoom) {
 			this.userZoomFactor *= factor;
 		} else {
-			const m = getMouseWorldPos(centerX, centerY);
+			let zoomCenterX = centerX;
+			let zoomCenterY = centerY;
+
+			if (this.enableTracking || this.trackedBodyIdx !== -1) {
+				zoomCenterX = this.width / 2;
+				zoomCenterY = this.height / 2;
+			}
+			
+			const m = getMouseWorldPos(zoomCenterX, zoomCenterY);
 			this.zoom *= factor;
 			
-			if (!this.enableTracking) {
-				this.camX = centerX - this.width/2 - m.x * this.zoom;
-				this.camY = centerY - this.height/2 - m.y * this.zoom;
-			}
+			this.camX = zoomCenterX - this.width/2 - m.x * this.zoom;
+			this.camY = zoomCenterY - this.height/2 - m.y * this.zoom;
 		}
 	},
 	
@@ -524,6 +530,8 @@ const Rendering = {
 	updateAutoCam: function(bodies) {
 		if (!bodies.length) return;
 
+		let doTracking = this.trackedBodyIdx !== -1 || this.enableTracking;
+		
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		let totalMass = 0;
 		let comX = 0; 
@@ -542,13 +550,23 @@ const Rendering = {
 			}
 		});
 
-		if (this.enableTracking && totalMass > 0) {
-			const targetX = -(comX / totalMass) * this.zoom;
-			const targetY = -(comY / totalMass) * this.zoom;
+		if (doTracking) {
+			let targetX, targetY;
 			
-			const posSmooth = 0.1;
-			this.camX += (targetX - this.camX) * posSmooth;
-			this.camY += (targetY - this.camY) * posSmooth;
+			if (this.trackedBodyIdx !== -1 && bodies[this.trackedBodyIdx]) {
+				const trackedBody = bodies[this.trackedBodyIdx];
+				targetX = -trackedBody.x * this.zoom;
+				targetY = -trackedBody.y * this.zoom;
+			} else if (this.enableTracking && totalMass > 0) {
+				targetX = -(comX / totalMass) * this.zoom;
+				targetY = -(comY / totalMass) * this.zoom;
+			}
+
+			if (targetX !== undefined) {
+				const posSmooth = 0.1;
+				this.camX += (targetX - this.camX) * posSmooth;
+				this.camY += (targetY - this.camY) * posSmooth;
+			}
 		}
 
 		if (this.enableAutoZoom) {
@@ -1331,7 +1349,7 @@ const Rendering = {
 	draw: function() {
 		window.App.sim.update();
 
-		if (this.enableTracking || this.enableAutoZoom) {
+		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyIdx !== -1) {
 			this.updateAutoCam(window.App.sim.bodies);
 		}
 
