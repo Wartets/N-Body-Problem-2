@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		let lastX = 0;
 
 		label.style.cursor = 'ew-resize';
-		label.title = "Cliquez et glissez pour changer la valeur. Maintenez Shift pour plus de précision, Ctrl pour plus de rapidité.";
+		label.title = "Click and drag to change value. Hold Shift for precision, Ctrl for speed.";
 
 		const onMouseMove = (e) => {
 			if (!isDragging) return;
@@ -916,6 +916,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			window.addEventListener('mousemove', onMouseMove);
 			window.addEventListener('mouseup', onMouseUp);
+		});
+	};
+	
+	const initTooltips = () => {
+		const tooltip = document.createElement('div');
+		tooltip.id = 'tooltip';
+		tooltip.style.position = 'absolute';
+		tooltip.style.display = 'none';
+		tooltip.style.padding = '5px 8px';
+		tooltip.style.backgroundColor = 'rgba(10, 10, 10, 0.85)';
+		tooltip.style.color = '#e0e0e0';
+		tooltip.style.border = '1px solid #444';
+		tooltip.style.borderRadius = '4px';
+		tooltip.style.fontSize = '11px';
+		tooltip.style.maxWidth = '200px';
+		tooltip.style.pointerEvents = 'none';
+		tooltip.style.zIndex = '10000';
+		tooltip.style.backdropFilter = 'blur(5px)';
+		document.body.appendChild(tooltip);
+
+		document.body.addEventListener('mouseover', (e) => {
+			const target = e.target.closest('.help-icon');
+			if (target) {
+				const text = target.dataset.tooltip;
+				if (!text) return;
+
+				tooltip.innerHTML = text.replace(/\n/g, '<br>');
+				tooltip.style.display = 'block';
+				
+				const rect = target.getBoundingClientRect();
+				const tooltipRect = tooltip.getBoundingClientRect();
+
+				let top = rect.top - tooltipRect.height - 5;
+				let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+
+				if (top < 0) {
+					top = rect.bottom + 5;
+				}
+				if (left < 0) {
+					left = 5;
+				}
+				if (left + tooltipRect.width > window.innerWidth) {
+					left = window.innerWidth - tooltipRect.width - 5;
+				}
+
+				tooltip.style.top = `${top + window.scrollY}px`;
+				tooltip.style.left = `${left + window.scrollX}px`;
+			}
+		});
+
+		document.body.addEventListener('mouseout', (e) => {
+			const target = e.target.closest('.help-icon');
+			if (target) {
+				tooltip.style.display = 'none';
+			}
 		});
 	};
 	
@@ -1432,25 +1487,25 @@ document.addEventListener('DOMContentLoaded', () => {
 					<input type="text" class="body-name-input" value="${body.name}">
 					<button class="btn-track btn-icon ${trackBtnClass}" title="Track Body"><i class="${trackIconClass}"></i></button>
 				</span>
-				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+				<button class="btn-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
 			</div>
 			<div class="card-grid">
-				<div class="mini-input-group"><label>Mass</label><input type="text" class="inp-mass" value="${body.mass}"></div>
-				<div class="mini-input-group"><label>Radius</label><input type="text" class="inp-radius" value="${body.radius}"></div>
-				<div class="mini-input-group"><label>Restitution</label><input type="text" class="inp-restitution" value="${body.restitution}"></div>
-				<div class="mini-input-group"><label>Position X</label><input type="text" class="inp-x" value="${body.x}"></div>
-				<div class="mini-input-group"><label>Position Y</label><input type="text" class="inp-y" value="${body.y}"></div>
-				<div class="mini-input-group"><label>Charge (e)</label><input type="text" class="inp-charge" value="${body.charge}"></div>
-				<div class="mini-input-group"><label>Velocity X</label><input type="text" class="inp-vx" value="${body.vx}"></div>
-				<div class="mini-input-group"><label>Velocity Y</label><input type="text" class="inp-vy" value="${body.vy}"></div>
-				<div class="mini-input-group"><label>Mag Moment</label><input type="text" class="inp-magMoment" value="${body.magMoment}"></div>
-				<div class="mini-input-group"><label>Start Acc X</label><input type="text" class="inp-start-ax" value="${body.startAx}"></div>
-				<div class="mini-input-group"><label>Start Acc Y</label><input type="text" class="inp-start-ay" value="${body.startAy}"></div>
-				<div class="mini-input-group"><label>Rotation Speed</label><input type="text" class="inp-rotSpeed" value="${body.rotationSpeed}"></div>
-				<div class="mini-input-group"><label>Temperature</label><input type="text" class="inp-temp" value="${body.temperature}"></div>
-				<div class="mini-input-group"><label>Young's Mod.</label><input type="text" class="inp-youngMod" value="${body.youngModulus}"></div>
-				<div class="mini-input-group"><label>Friction</label><input type="text" class="inp-friction" value="${body.friction}"></div>
-				<div class="mini-input-group"><label>Lifetime</label><input type="text" class="inp-lifetime" value="${body.lifetime}"></div>
+				<div class="mini-input-group"><label>Mass <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body mass. Set to -1 for a fixed body."></i></label><input type="text" class="inp-mass" value="${body.mass}"></div>
+				<div class="mini-input-group"><label>Radius <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body radius for collisions."></i></label><input type="text" class="inp-radius" value="${body.radius}"></div>
+				<div class="mini-input-group"><label>Restitution <i class="fa-solid fa-circle-question help-icon" data-tooltip="Elasticity coefficient (0-1)."></i></label><input type="text" class="inp-restitution" value="${body.restitution}"></div>
+				<div class="mini-input-group"><label>Position X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current X coordinate."></i></label><input type="text" class="inp-x" value="${body.x}"></div>
+				<div class="mini-input-group"><label>Position Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current Y coordinate."></i></label><input type="text" class="inp-y" value="${body.y}"></div>
+				<div class="mini-input-group"><label>Charge (e) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Electric charge."></i></label><input type="text" class="inp-charge" value="${body.charge}"></div>
+				<div class="mini-input-group"><label>Velocity X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current velocity on X axis."></i></label><input type="text" class="inp-vx" value="${body.vx}"></div>
+				<div class="mini-input-group"><label>Velocity Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current velocity on Y axis."></i></label><input type="text" class="inp-vy" value="${body.vy}"></div>
+				<div class="mini-input-group"><label>Mag Moment <i class="fa-solid fa-circle-question help-icon" data-tooltip="Magnetic moment."></i></label><input type="text" class="inp-magMoment" value="${body.magMoment}"></div>
+				<div class="mini-input-group"><label>Start Acc X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration on X."></i></label><input type="text" class="inp-start-ax" value="${body.startAx}"></div>
+				<div class="mini-input-group"><label>Start Acc Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration on Y."></i></label><input type="text" class="inp-start-ay" value="${body.startAy}"></div>
+				<div class="mini-input-group"><label>Rotation Speed <i class="fa-solid fa-circle-question help-icon" data-tooltip="Rotation speed."></i></label><input type="text" class="inp-rotSpeed" value="${body.rotationSpeed}"></div>
+				<div class="mini-input-group"><label>Temperature <i class="fa-solid fa-circle-question help-icon" data-tooltip="Temperature (visual)."></i></label><input type="text" class="inp-temp" value="${body.temperature}"></div>
+				<div class="mini-input-group"><label>Young's Mod. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body hardness during collision."></i></label><input type="text" class="inp-youngMod" value="${body.youngModulus}"></div>
+				<div class="mini-input-group"><label>Friction <i class="fa-solid fa-circle-question help-icon" data-tooltip="Friction coefficient."></i></label><input type="text" class="inp-friction" value="${body.friction}"></div>
+				<div class="mini-input-group"><label>Lifetime <i class="fa-solid fa-circle-question help-icon" data-tooltip="Lifetime in 'ticks'. -1 for infinite."></i></label><input type="text" class="inp-lifetime" value="${body.lifetime}"></div>
 			</div>
 		`;
 
@@ -2493,6 +2548,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 	
+	initTooltips();
 	initBodySorting();
 	initPresets();
 	initSimPresets();
