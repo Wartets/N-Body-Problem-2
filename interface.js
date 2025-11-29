@@ -113,6 +113,22 @@ document.addEventListener('DOMContentLoaded', () => {
 			headerEl.style.cursor = 'grab';
 		};
 
+		headerEl.addEventListener('dblclick', (e) => {
+			if (e.target.closest('button')) return;
+
+			panelEl.classList.toggle('collapsed');
+			const toggleBtn = headerEl.querySelector('button');
+
+			if (toggleBtn) {
+				const isCollapsed = panelEl.classList.contains('collapsed');
+				toggleBtn.innerHTML = isCollapsed ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
+			}
+			
+			panelEl.style.removeProperty('top');
+			panelEl.style.removeProperty('left');
+			panelEl.style.removeProperty('right');
+		});
+
 		panelEl.addEventListener('mousedown', () => {
 			maxZIndex++;
 			panelEl.style.zIndex = maxZIndex;
@@ -151,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		window.addEventListener('touchend', endDrag);
 	};
-
+	
 	const toggleBtn = document.getElementById('togglePanelBtn');
 	
 	const panel = document.getElementById('controlPanel');
@@ -226,8 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		let x, y, vx, vy;
 
 		if (setDefault) {
-			x = 10; 
-			y = 10;
+			x = 0; 
+			y = 0;
 			vx = 0;
 			vy = 0;
 		} else {
@@ -910,6 +926,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	document.addEventListener('dblclick', (e) => {
 		e.preventDefault();
 	}, { passive: false });
+	
+	document.addEventListener('keydown', (e) => {
+		if (e.code === 'Space') {
+			const activeEl = document.activeElement;
+			if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA') {
+				return;
+			}
+			e.preventDefault();
+			playBtn.click();
+		}
+	});
 	
 	toggleBtn.addEventListener('click', () => {
 		panel.classList.toggle('collapsed');

@@ -70,6 +70,11 @@ const Rendering = {
 		this.canvas = document.getElementById('simCanvas');
 		this.ctx = this.canvas.getContext('2d');
 		
+		this.fps = 0;
+		this.lastFrameTime = performance.now();
+		this.frameCount = 0;
+		this.lastFpsUpdateTime = 0;
+		
 		window.addEventListener('resize', () => this.resize());
 		this.resize();
 		
@@ -229,7 +234,7 @@ const Rendering = {
 				this.isDragging = true;
 			}
 		};
-		const handleMove = (clientX, clientY) => {
+		const handleMove = (clientX, clientY, e) => {
 			const bodies = window.App.sim.bodies;
 			const m = getMouseWorldPos(clientX, clientY);
 			this.currentWorldX = m.x;
@@ -268,8 +273,21 @@ const Rendering = {
 			} else if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
 				const b = bodies[this.selectedBodyIdx];
 				if (b) {
-					b.x = m.x;
-					b.y = m.y;
+					let finalX = m.x;
+					let finalY = m.y;
+					
+					if (e && !e.shiftKey) {
+						const snapThreshold = 10 / this.zoom;
+						if (Math.abs(m.x) < snapThreshold) {
+							finalX = 0;
+						}
+						if (Math.abs(m.y) < snapThreshold) {
+							finalY = 0;
+						}
+					}
+					
+					b.x = finalX;
+					b.y = finalY;
 					b.path = []; 
 				}
 			} else if (this.dragMode === 'vector' && this.selectedBodyIdx !== -1) {
@@ -365,7 +383,7 @@ const Rendering = {
 		
 		window.addEventListener('mousemove', (e) => {
 			this.resetCursorTimeout();
-			handleMove(e.clientX, e.clientY);
+			handleMove(e.clientX, e.clientY, e);
 		});
 		
 		window.addEventListener('mouseup', (e) => handleEnd(e.clientX, e.clientY));
@@ -392,7 +410,7 @@ const Rendering = {
 			e.preventDefault();
 			
 			if (e.touches.length === 1) {
-				handleMove(e.touches[0].clientX, e.touches[0].clientY);
+				handleMove(e.touches[0].clientX, e.touches[0].clientY, null);
 			} else if (e.touches.length === 2 && this.lastTouchDist > 0) {
 				const dist = Math.hypot(
 					e.touches[0].clientX - e.touches[1].clientX,
@@ -1166,6 +1184,150 @@ const Rendering = {
 		this.ctx.setLineDash([]);
 	},
 	
+	drawRulers: function() {
+		const margin = 0;
+		const majorTickSize = 10;
+		const minorTickSize = 5;
+		const ctx = this.ctx;
+
+		ctx.save();
+		ctx.font = '10px "Roboto Mono", monospace';
+		ctx.fillStyle = 'rgba(200, 200, 200, 0.5)';
+		ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+		ctx.lineWidth = 0.7;
+		ctx.textBaseline = 'middle';
+		
+		const worldToScreenX = (worldX) => (worldX * this.zoom) + this.width / 2 + this.camX;
+		const worldToScreenY = (worldY) => (worldY * this.zoom) + this.height / 2 + this.camY;
+
+		const screenToWorldX = (screenX) => (screenX - this.width / 2 - this.camX) / this.zoom;
+		const screenToWorldY = (screenY) => (screenY - this.height / 2 - this.camY) / this.zoom;
+
+		const getNiceStep = (rawStep) => {
+			const exponent = Math.floor(Math.log10(rawStep));
+			const magnitude = Math.pow(10, exponent);
+			const residual = rawStep / magnitude;
+			if (residual > 5) return 10 * magnitude;
+			if (residual > 2) return 5 * magnitude;
+			if (residual > 1) return 2 * magnitude;
+			return magnitude;
+		};
+
+		const targetPixelStep = 80;
+		const majorWorldStep = getNiceStep(targetPixelStep / this.zoom);
+		const minorWorldStep = majorWorldStep / 5;
+
+		ctx.beginPath();
+		
+		const worldLeft = screenToWorldX(0);
+		const worldRight = screenToWorldX(this.width);
+		let currentWorldX = Math.floor(worldLeft / minorWorldStep) * minorWorldStep;
+
+		while (currentWorldX < worldRight) {
+			const screenX = worldToScreenX(currentWorldX);
+			if (screenX >= margin) {
+				const isMajor = Math.abs(currentWorldX % majorWorldStep) < 1e-9 || Math.abs(currentWorldX % majorWorldStep - majorWorldStep) < 1e-9;
+				const tickSize = isMajor ? majorTickSize : minorTickSize;
+				ctx.moveTo(screenX, margin);
+				ctx.lineTo(screenX, margin + tickSize);
+
+				if (isMajor) {
+					ctx.textAlign = 'center';
+					ctx.fillText(currentWorldX.toFixed(currentWorldX < 1 ? 2 : 0), screenX, margin + tickSize + 8);
+				}
+			}
+			currentWorldX += minorWorldStep;
+		}
+
+		const worldTop = screenToWorldY(0);
+		const worldBottom = screenToWorldY(this.height);
+		let currentWorldY = Math.floor(worldTop / minorWorldStep) * minorWorldStep;
+
+		while (currentWorldY < worldBottom) {
+			const screenY = worldToScreenY(currentWorldY);
+			if (screenY >= margin) {
+				const isMajor = Math.abs(currentWorldY % majorWorldStep) < 1e-9 || Math.abs(currentWorldY % majorWorldStep - majorWorldStep) < 1e-9;
+				const tickSize = isMajor ? majorTickSize : minorTickSize;
+				ctx.moveTo(margin, screenY);
+				ctx.lineTo(margin + tickSize, screenY);
+				
+				if (isMajor) {
+					ctx.textAlign = 'left';
+					ctx.fillText(currentWorldY.toFixed(currentWorldY < 1 ? 2 : 0), margin + tickSize + 4, screenY);
+				}
+			}
+			currentWorldY += minorWorldStep;
+		}
+		
+		ctx.stroke();
+		ctx.restore();
+	},
+	
+	drawGrid: function() {
+		const vpW = this.width / this.zoom;
+		const vpH = this.height / this.zoom;
+		
+		const viewSize = Math.max(vpW, vpH);
+		const margin = viewSize * 2.5;
+
+		const left = -this.camX - vpW / 2 - margin;
+		const right = -this.camX + vpW / 2 + margin;
+		const top = -this.camY - vpH / 2 - margin;
+		const bottom = -this.camY + vpH / 2 + margin;
+
+		const targetPx = 310;
+		const rawStep = targetPx / this.zoom;
+		const exponent = Math.floor(Math.log10(rawStep));
+		let step = Math.pow(10, exponent);
+		
+		const ratio = rawStep / step;
+		if (ratio > 5) step *= 5;
+		else if (ratio > 2) step *= 2;
+
+		const segments = Math.max(5, Math.floor(this.gridDetail)); 
+		const subStep = step / segments;
+
+		this.ctx.lineWidth = 0.8 / this.zoom; 
+		this.ctx.strokeStyle = '#323332';
+		this.ctx.beginPath();
+
+		const startX = Math.floor(left / step) * step;
+		const endX = Math.ceil(right / step) * step;
+		const startY = Math.floor(top / step) * step;
+		const endY = Math.ceil(bottom / step) * step;
+
+		for (let x = startX; x <= endX; x += step) {
+			let first = true;
+			for (let y = top; y <= bottom + subStep; y += subStep) {
+				const p = this.applyDistortion(x, Math.min(y, bottom));
+				if (first) { this.ctx.moveTo(p.x, p.y); first = false; }
+				else { this.ctx.lineTo(p.x, p.y); }
+			}
+		}
+
+		for (let y = startY; y <= endY; y += step) {
+			let first = true;
+			for (let x = left; x <= right + subStep; x += subStep) {
+				const p = this.applyDistortion(Math.min(x, right), y);
+				if (first) { this.ctx.moveTo(p.x, p.y); first = false; }
+				else { this.ctx.lineTo(p.x, p.y); }
+			}
+		}
+
+		this.ctx.stroke();
+	},
+	
+	drawPerformanceIndicator: function() {
+		const bodyCount = window.App.sim.bodies.length;
+		const text = `${this.fps} FPS | ${bodyCount} Bodies`;
+		
+		this.ctx.font = '12px "Roboto Mono", monospace';
+		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+		this.ctx.textAlign = 'right';
+		this.ctx.textBaseline = 'bottom';
+		this.ctx.fillText(text, this.width - 10, this.height - 10);
+	},
+	
 	draw: function() {
 		window.App.sim.update();
 
@@ -1259,8 +1421,10 @@ const Rendering = {
 		}
 
 		this.ctx.restore();
+		this.drawRulers();
 		this.drawOffScreenIndicators();
 		this.drawMouseCoordinates();
+		this.drawPerformanceIndicator();
 	},
 	
 	applyDistortion: function(x, y) {
@@ -1292,61 +1456,15 @@ const Rendering = {
 		return { x: x + totalDx, y: y + totalDy };
 	},
 
-	drawGrid: function() {
-		const vpW = this.width / this.zoom;
-		const vpH = this.height / this.zoom;
-		
-		const viewSize = Math.max(vpW, vpH);
-		const margin = viewSize * 2.5;
-
-		const left = -this.camX - vpW / 2 - margin;
-		const right = -this.camX + vpW / 2 + margin;
-		const top = -this.camY - vpH / 2 - margin;
-		const bottom = -this.camY + vpH / 2 + margin;
-
-		const targetPx = 310;
-		const rawStep = targetPx / this.zoom;
-		const exponent = Math.floor(Math.log10(rawStep));
-		let step = Math.pow(10, exponent);
-		
-		const ratio = rawStep / step;
-		if (ratio > 5) step *= 5;
-		else if (ratio > 2) step *= 2;
-
-		const segments = Math.max(5, Math.floor(this.gridDetail)); 
-		const subStep = step / segments;
-
-		this.ctx.lineWidth = 0.8 / this.zoom; 
-		this.ctx.strokeStyle = '#323332';
-		this.ctx.beginPath();
-
-		const startX = Math.floor(left / step) * step;
-		const endX = Math.ceil(right / step) * step;
-		const startY = Math.floor(top / step) * step;
-		const endY = Math.ceil(bottom / step) * step;
-
-		for (let x = startX; x <= endX; x += step) {
-			let first = true;
-			for (let y = top; y <= bottom + subStep; y += subStep) {
-				const p = this.applyDistortion(x, Math.min(y, bottom));
-				if (first) { this.ctx.moveTo(p.x, p.y); first = false; }
-				else { this.ctx.lineTo(p.x, p.y); }
-			}
-		}
-
-		for (let y = startY; y <= endY; y += step) {
-			let first = true;
-			for (let x = left; x <= right + subStep; x += subStep) {
-				const p = this.applyDistortion(Math.min(x, right), y);
-				if (first) { this.ctx.moveTo(p.x, p.y); first = false; }
-				else { this.ctx.lineTo(p.x, p.y); }
-			}
-		}
-
-		this.ctx.stroke();
-	},
-	
 	loop: function() {
+		const now = performance.now();
+		this.frameCount++;
+		if (now - this.lastFpsUpdateTime > 1000) {
+			this.fps = this.frameCount;
+			this.frameCount = 0;
+			this.lastFpsUpdateTime = now;
+		}
+		
 		this.draw();
 		requestAnimationFrame(() => this.loop());
 	}
