@@ -56,8 +56,8 @@ const Simulation = {
 	formulaFields: [],
 	
 	showTrails: true,
-	trailLength: 100,
-	trailStep: 2,
+	trailLength: 80,
+	trailStep: 3,
 	tickCount: 0,
 
 	init: function() {
@@ -487,15 +487,12 @@ const Simulation = {
 					
 					if (avgYoung > 0) {
 						const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
-						
 						const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
-						
 						const penetrationForce = avgYoung * overlap * contactWidth;
 						
 						fx -= penetrationForce * nx;
 						fy -= penetrationForce * ny;
 					}
-
 
 					const r1x = b1.radius * nx;
 					const r1y = b1.radius * ny;
@@ -634,31 +631,64 @@ const Simulation = {
 						const bx2 = barrier.x2;
 						const by2 = barrier.y2;
 						
-						const segX = bx2 - bx1;
-						const segY = by2 - by1;
-						const segLenSq = segX*segX + segY*segY;
+						let collisionDetected = false;
+						let nx = 0, ny = 0, dist = 0, overlap = 0;
 						
-						if (segLenSq === 0) continue;
-						
-						const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-						const t = Math.max(0, Math.min(1, dot));
-						
-						const closestX = bx1 + t * segX;
-						const closestY = by1 + t * segY;
-						
-						const distX = b.x - closestX;
-						const distY = b.y - closestY;
-						const distSq = distX*distX + distY*distY;
-						const dist = Math.sqrt(distSq);
-						
-						if (dist < b.radius) {
-							const nx = distX / dist;
-							const ny = distY / dist;
+						const den = (bx1 - bx2) * (prevY - b.y) - (by1 - by2) * (prevX - b.x);
+						if (den !== 0) {
+							const t = ((bx1 - prevX) * (prevY - b.y) - (by1 - prevY) * (prevX - b.x)) / den;
+							const u = -((bx1 - bx2) * (by1 - prevY) - (by1 - by2) * (bx1 - prevX)) / den;
 							
-							const overlap = b.radius - dist;
-							b.x += nx * overlap;
-							b.y += ny * overlap;
+							if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+								collisionDetected = true;
+								const ix = bx1 + t * (bx2 - bx1);
+								const iy = by1 + t * (by2 - by1);
+								
+								const segX = bx2 - bx1;
+								const segY = by2 - by1;
+								const segLen = Math.sqrt(segX*segX + segY*segY);
+								nx = -segY / segLen;
+								ny = segX / segLen;
+								
+								const approach = (b.x - prevX)*nx + (b.y - prevY)*ny;
+								if (approach > 0) {
+									nx = -nx; ny = -ny;
+								}
+								
+								b.x = ix + nx * (b.radius + 0.01);
+								b.y = iy + ny * (b.radius + 0.01);
+							}
+						}
+
+						if (!collisionDetected) {
+							const segX = bx2 - bx1;
+							const segY = by2 - by1;
+							const segLenSq = segX*segX + segY*segY;
 							
+							if (segLenSq > 0) {
+								const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
+								const tClamped = Math.max(0, Math.min(1, dot));
+								
+								const closestX = bx1 + tClamped * segX;
+								const closestY = by1 + tClamped * segY;
+								
+								const distX = b.x - closestX;
+								const distY = b.y - closestY;
+								const distSq = distX*distX + distY*distY;
+								dist = Math.sqrt(distSq);
+								
+								if (dist < b.radius) {
+									collisionDetected = true;
+									nx = distX / dist;
+									ny = distY / dist;
+									overlap = b.radius - dist;
+									b.x += nx * overlap;
+									b.y += ny * overlap;
+								}
+							}
+						}
+						
+						if (collisionDetected) {
 							const rcpX = -nx * b.radius;
 							const rcpY = -ny * b.radius;
 							
@@ -698,7 +728,6 @@ const Simulation = {
 								const torque = (rcpX * jty - rcpY * jtx);
 								b.rotationSpeed += torque * invInertia;
 							}
-
 						}
 					}
 				}
@@ -712,47 +741,27 @@ const Simulation = {
 					const bottom = z.y + z.height;
 					const offset = (z.type === 'radius') ? b.radius : 0;
 					
-					if (b.y + offset >= top && b.y - offset <= bottom) {
-						const wasInX = (prevX >= left && prevX <= right);
-						
-						if (wasInX) {
-							if (b.vx > 0 && b.x + offset >= right) {
-								b.x -= z.width;
-								b.path = [];
-							} else if (b.vx < 0 && b.x - offset <= left) {
-								b.x += z.width;
-								b.path = [];
-							}
-						} else {
-							if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
-								b.x = right + offset + 0.01;
-								b.path = [];
-							} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
-								b.x = left - offset - 0.01;
-								b.path = [];
-							}
+					const inY = (prevY >= top - offset && prevY <= bottom + offset);
+					
+					if (inY) {
+						if (prevX <= right + offset && b.x > right + offset) {
+							b.x -= z.width;
+							b.path = [];
+						} else if (prevX >= left - offset && b.x < left - offset) {
+							b.x += z.width;
+							b.path = [];
 						}
 					}
 					
-					if (b.x + offset >= left && b.x - offset <= right) {
-						const wasInY = (prevY >= top && prevY <= bottom);
-						
-						if (wasInY) {
-							if (b.vy > 0 && b.y + offset >= bottom) {
-								b.y -= z.height;
-								b.path = [];
-							} else if (b.vy < 0 && b.y - offset <= top) {
-								b.y += z.height;
-								b.path = [];
-							}
-						} else {
-							if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
-								b.y = bottom + offset + 0.01;
-								b.path = [];
-							} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
-								b.y = top - offset - 0.01;
-								b.path = [];
-							}
+					const inX = (prevX >= left - offset && prevX <= right + offset);
+					
+					if (inX) {
+						if (prevY <= bottom + offset && b.y > bottom + offset) {
+							b.y -= z.height;
+							b.path = [];
+						} else if (prevY >= top - offset && b.y < top - offset) {
+							b.y += z.height;
+							b.path = [];
 						}
 					}
 				}
@@ -1069,27 +1078,60 @@ const Simulation = {
 							const bx2 = barrier.x2;
 							const by2 = barrier.y2;
 							
-							const segX = bx2 - bx1;
-							const segY = by2 - by1;
-							const segLenSq = segX*segX + segY*segY;
-							if (segLenSq === 0) continue;
+							let collisionDetected = false;
+							let nx = 0, ny = 0, dist = 0, overlap = 0;
 							
-							const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-							const t = Math.max(0, Math.min(1, dot));
-							
-							const closestX = bx1 + t * segX;
-							const closestY = by1 + t * segY;
-							const distX = b.x - closestX;
-							const distY = b.y - closestY;
-							const dist = Math.sqrt(distX*distX + distY*distY);
-							
-							if (dist < b.radius) {
-								const nx = distX / dist;
-								const ny = distY / dist;
-								const overlap = b.radius - dist;
-								b.x += nx * overlap;
-								b.y += ny * overlap;
+							const den = (bx1 - bx2) * (prevY - b.y) - (by1 - by2) * (prevX - b.x);
+							if (den !== 0) {
+								const t = ((bx1 - prevX) * (prevY - b.y) - (by1 - prevY) * (prevX - b.x)) / den;
+								const u = -((bx1 - bx2) * (by1 - prevY) - (by1 - by2) * (bx1 - prevX)) / den;
 								
+								if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+									collisionDetected = true;
+									const ix = bx1 + t * (bx2 - bx1);
+									const iy = by1 + t * (by2 - by1);
+									
+									const segX = bx2 - bx1;
+									const segY = by2 - by1;
+									const segLen = Math.sqrt(segX*segX + segY*segY);
+									nx = -segY / segLen;
+									ny = segX / segLen;
+									
+									const approach = (b.x - prevX)*nx + (b.y - prevY)*ny;
+									if (approach > 0) {
+										nx = -nx; ny = -ny;
+									}
+									
+									b.x = ix + nx * (b.radius + 0.01);
+									b.y = iy + ny * (b.radius + 0.01);
+								}
+							}
+							
+							if (!collisionDetected) {
+								const segX = bx2 - bx1;
+								const segY = by2 - by1;
+								const segLenSq = segX*segX + segY*segY;
+								if (segLenSq > 0) {
+									const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
+									const tClamped = Math.max(0, Math.min(1, dot));
+									const closestX = bx1 + tClamped * segX;
+									const closestY = by1 + tClamped * segY;
+									const distX = b.x - closestX;
+									const distY = b.y - closestY;
+									dist = Math.sqrt(distX*distX + distY*distY);
+									
+									if (dist < b.radius) {
+										collisionDetected = true;
+										nx = distX / dist;
+										ny = distY / dist;
+										overlap = b.radius - dist;
+										b.x += nx * overlap;
+										b.y += ny * overlap;
+									}
+								}
+							}
+							
+							if (collisionDetected) {
 								const rcpX = -nx * b.radius;
 								const rcpY = -ny * b.radius;
 								const vpX = b.vx - b.rotationSpeed * rcpY;
@@ -1147,47 +1189,25 @@ const Simulation = {
 						const bottom = z.y + z.height;
 						const offset = (z.type === 'radius') ? b.radius : 0;
 						
-						if (b.y + offset >= top && b.y - offset <= bottom) {
-							const wasInX = (prevX >= left && prevX <= right);
-							
-							if (wasInX) {
-								if (b.vx > 0 && b.x + offset >= right) {
-									b.x -= z.width;
-									didWrap = true;
-								} else if (b.vx < 0 && b.x - offset <= left) {
-									b.x += z.width;
-									didWrap = true;
-								}
-							} else {
-								if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
-									b.x = right + offset + 0.01;
-									didWrap = true;
-								} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
-									b.x = left - offset - 0.01;
-									didWrap = true;
-								}
+						const inY = (prevY >= top - offset && prevY <= bottom + offset);
+						if (inY) {
+							if (prevX <= right + offset && b.x > right + offset) {
+								b.x -= z.width;
+								didWrap = true;
+							} else if (prevX >= left - offset && b.x < left - offset) {
+								b.x += z.width;
+								didWrap = true;
 							}
 						}
 						
-						if (b.x + offset >= left && b.x - offset <= right) {
-							const wasInY = (prevY >= top && prevY <= bottom);
-							
-							if (wasInY) {
-								if (b.vy > 0 && b.y + offset >= bottom) {
-									b.y -= z.height;
-									didWrap = true;
-								} else if (b.vy < 0 && b.y - offset <= top) {
-									b.y += z.height;
-									didWrap = true;
-								}
-							} else {
-								if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
-									b.y = bottom + offset + 0.01;
-									didWrap = true;
-								} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
-									b.y = top - offset - 0.01;
-									didWrap = true;
-								}
+						const inX = (prevX >= left - offset && prevX <= right + offset);
+						if (inX) {
+							if (prevY <= bottom + offset && b.y > bottom + offset) {
+								b.y -= z.height;
+								didWrap = true;
+							} else if (prevY >= top - offset && b.y < top - offset) {
+								b.y += z.height;
+								didWrap = true;
 							}
 						}
 					}
