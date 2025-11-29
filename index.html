@@ -195,19 +195,6 @@
 			
 			<div class="divider"></div>
 
-			<div class="section-header toggle-header" id="fieldDefHeader">
-				<span>Field Definition</span>
-				<button id="toggleFieldDefBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
-			</div>
-
-			<div id="fieldDefContent">
-				<div id="fieldsListContainer" style="margin-bottom: 8px;">
-				</div>
-				<button id="addFieldBtn" class="btn secondary"><i class="fa-solid fa-plus"></i> Add Formula Field</button>
-			</div>
-			
-			<div class="divider"></div>
-
 			<div class="control-section collapsed-section" id="injectionSection">
 				<div class="section-header toggle-header">
 					<span>Injection parameters</span>
@@ -278,7 +265,7 @@
 	<div id="toolsPanel" class="collapsed">
 		<div id="toolsHeader">
 			<button id="toggleToolsBtn"><i class="fa-solid fa-plus"></i></button>
-			<span class="app-title"><i class="fa-solid fa-toolbox"></i> Tools</span>
+			<span class="app-title">Tools <i class="fa-solid fa-toolbox"></i></span>
 		</div>
 		
 		<div id="toolsContent">
@@ -309,6 +296,25 @@
 				</div>
 			</div>
 			
+			<div class="divider"></div>
+
+			<div class="control-section">
+				<div class="section-header">Field Definition</div>
+				<button id="addFieldBtn" class="btn secondary"><i class="fa-solid fa-plus"></i> Add Formula Field</button>
+
+				<div id="fieldDefCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="fieldDefListHeader">
+						<span>Defined Fields <span id="fieldListCount">0</span></span>
+						<button id="toggleFieldDefListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="fieldsListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider"></div>
+			
 			<div class="control-section">
 				<div class="section-header">Periodic Zones</div>
 				<button id="toggleZoneDrawBtn" class="btn secondary">
@@ -325,6 +331,8 @@
 					</div>
 				</div>
 			</div>
+			
+			<div class="divider"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Viscosity Zones</div>
@@ -343,6 +351,8 @@
 				</div>
 			</div>
 			
+			<div class="divider"></div>
+			
 			<div class="control-section">
 				<div class="section-header">Elastic Bonds</div>
 				<button id="toggleBondToolBtn" class="btn secondary">
@@ -360,6 +370,8 @@
 				</div>
 			</div>
 			
+			<div class="divider"></div>
+			
 			<div class="control-section">
 				<div class="section-header">Solid Barriers</div>
 				<button id="toggleBarrierToolBtn" class="btn secondary">
@@ -376,6 +388,8 @@
 					</div>
 				</div>
 			</div>
+			
+			<div class="divider"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Field Zones</div>

@@ -776,11 +776,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 	
-	const toggleFieldDefinition = () => {
-		fieldDefContent.classList.toggle('hidden-content');
-		toggleFieldDefBtn.innerHTML = fieldDefContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
-	};
-
 	const toggleBodiesList = () => {
 		bodiesContainer.classList.toggle('hidden-content');
 		const sortContainer = document.getElementById('bodySortContainer');
@@ -1009,6 +1004,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	const originalAddBody = Sim.addBody.bind(Sim);
 	const originalRemoveBody = Sim.removeBody.bind(Sim);
 	
+	const toggleInjection = () => {
+		injContent.classList.toggle('hidden-content');
+		toggleInjBtn.innerHTML = injContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+	};
+	
+	const injHeader = document.querySelector('#injectionSection .section-header');
+	
 	setupDraggable(panel, header, [toolsPanel]);
 	setupDraggable(toolsPanel, toolsHeader, [panel]);
 	
@@ -1087,11 +1089,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		Sim.formulaFields.push(newField);
 		refreshFieldList();
 		
-		if (fieldDefContent.classList.contains('hidden-content')) {
-			toggleFieldDefBtn.click();
+		const listContainer = document.getElementById('fieldsListContainer');
+		const toggleBtn = document.getElementById('toggleFieldDefListBtn');
+		if (listContainer && listContainer.classList.contains('hidden-content') && toggleBtn) {
+			toggleBtn.click();
 		}
 	});
-
+	
 	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
 
 	document.getElementById('resetBtn').addEventListener('click', () => {
@@ -1185,10 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
-	toggleInjBtn.addEventListener('click', () => {
-		injContent.classList.toggle('hidden-content');
-		toggleInjBtn.innerHTML = injContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
-	});
+	toggleInjBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInjection(); });
 	
 	toggleViscosityZoneBtn.addEventListener('click', () => {
 		if (Render.drawMode === 'viscosity') {
@@ -1241,11 +1242,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 	
+	if (injHeader) injHeader.addEventListener('click', toggleInjection);
+	
 	if (toggleDisplayBtn) {
-		toggleDisplayBtn.addEventListener('click', () => {
+		const toggleDisplay = () => {
 			displayContent.classList.toggle('hidden-content');
 			toggleDisplayBtn.innerHTML = displayContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
-		});
+		};
+		toggleDisplayBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleDisplay(); });
+		const displayHeader = document.querySelector('#displaySection .section-header');
+		if (displayHeader) displayHeader.addEventListener('click', toggleDisplay);
 	}
 	
 	if (toggleBodiesBtn) {
@@ -1476,16 +1482,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		`;
 		
 		bondToolBtn.parentNode.insertBefore(presetContainer, bondToolBtn.nextSibling.nextSibling); // Insert after divider-sub if present
-	}
-	
-	if (toggleFieldDefBtn) {
-		toggleFieldDefBtn.addEventListener('click', toggleFieldDefinition);
-	}
-	
-	if (fieldDefContent.classList.contains('hidden-content')) {
-		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-	} else {
-		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
 	}
 	
 	function createBodyCard(body, index) {
@@ -1826,7 +1822,21 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshFieldList() {
+		const collapsible = document.getElementById('fieldDefCollapsible');
+		const countSpan = document.getElementById('fieldListCount');
+		
 		fieldsListContainer.innerHTML = '';
+		const count = Sim.formulaFields.length;
+
+		if (countSpan) countSpan.textContent = count;
+
+		if (count > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
 		Sim.formulaFields.forEach((field, index) => {
 			if (!field.funcEx || !field.funcEy) {
 				const compiledX = Sim.compileFormula(field.formulaX);
@@ -2522,7 +2532,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	setupCollapsibleList('viscosityZonesListHeader', 'viscosityZonesListContainer', 'toggleViscosityZonesListBtn');
 	setupCollapsibleList('bondsListHeader', 'bondsListContainer', 'toggleBondsListBtn');
 	setupCollapsibleList('barriersListHeader', 'barriersListContainer', 'toggleBarriersListBtn');
-	setupCollapsibleList('fieldZonesListHeader', 'fieldZonesListContainer', 'toggleFieldZonesListBtn');
+	setupCollapsibleList('fieldDefHeader', 'fieldDefContent', 'toggleFieldDefBtn');
+	setupCollapsibleList('fieldDefListHeader', 'fieldsListContainer', 'toggleFieldDefListBtn');
 	
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
