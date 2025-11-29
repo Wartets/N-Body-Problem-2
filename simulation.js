@@ -7,7 +7,7 @@ window.App = {
 class Body {
 	constructor(mass, x, y, vx, vy, radius, color, name, startAx = 0, startAy = 0, 
 				charge = 0, magMoment = 0, restitution = 1.0, 
-				lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0) {
+				lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0, friction = 0.5) {
 		this.mass = mass;
 		this.x = x;
 		this.y = y;
@@ -17,7 +17,7 @@ class Body {
 		this.ay = 0;
 		this.startAx = startAx;
 		this.startAy = startAy;
-		this.radius = radius > 0 ? radius : Math.max(2, Math.log(mass) * 2);
+		this.radius = radius > 0 ? radius : (mass > 1 ? Math.max(2, Math.log(mass) * 2) : 2);
 		this.color = color || `hsl(${Math.random() * 360}, 70%, 60%)`;
 		this.path = [];
 		this.name = name || "Body";
@@ -29,6 +29,7 @@ class Body {
 		this.temperature = temperature;
 		this.rotationSpeed = rotationSpeed;
 		this.youngModulus = youngModulus;
+		this.friction = friction;
 		this.angle = 0;
 	}
 };
@@ -73,11 +74,11 @@ const Simulation = {
 		this.formulaFields = [];
 	},
 	
-	addBody: function(m, x, y, vx, vy, radius, col, name, ax = 0, ay = 0, charge = 0, magMoment = 0, restitution = 1.0, lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0) {
+	addBody: function(m, x, y, vx, vy, radius, col, name, ax = 0, ay = 0, charge = 0, magMoment = 0, restitution = 1.0, lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0, friction = 0.5) {
 		const newName = name || `Body ${this.bodies.length + 1}`;
 		const newBody = new Body(m, x, y, vx, vy, radius, col, newName, ax, ay,
 								  charge, magMoment, restitution, 
-								  lifetime, temperature, rotationSpeed, youngModulus);
+								  lifetime, temperature, rotationSpeed, youngModulus, friction);
 		newBody.startAx = ax;
 		newBody.startAy = ay;
 		this.bodies.push(newBody);
@@ -183,7 +184,7 @@ const Simulation = {
 		}
 	},
 	
-	addSolidBarrier: function(x1, y1, x2, y2, restitution, color, name) {
+	addSolidBarrier: function(x1, y1, x2, y2, restitution, color, name, friction) {
 		this.solidBarriers.push({
 			id: Date.now() + Math.random(),
 			name: name || `Wall ${this.solidBarriers.length + 1}`,
@@ -192,6 +193,7 @@ const Simulation = {
 			x2: x2,
 			y2: y2,
 			restitution: restitution || 0.8,
+			friction: friction !== undefined ? friction : 0.5,
 			color: color || '#8e44ad',
 			enabled: true
 		});
@@ -319,7 +321,6 @@ const Simulation = {
 		let count = bodies.length;
 		const c2 = this.c * this.c;
 		const dt = this.dt;
-		const friction = 0.5;
 
 		this.tickCount++;
 
@@ -482,15 +483,19 @@ const Simulation = {
 
 				if (this.enableCollision && dist < minDist) {
 					const overlap = minDist - dist;
-					
 					const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
+					
 					if (avgYoung > 0) {
-						const m1 = b1.mass === -1 ? b2.mass : b1.mass;
-						const m2 = b2.mass === -1 ? b1.mass : b2.mass;
-						const penetrationForce = avgYoung * overlap * 0.05 * Math.min(m1, m2);
+						const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
+						
+						const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
+						
+						const penetrationForce = avgYoung * overlap * contactWidth;
+						
 						fx -= penetrationForce * nx;
 						fy -= penetrationForce * ny;
 					}
+
 
 					const r1x = b1.radius * nx;
 					const r1y = b1.radius * ny;
@@ -510,11 +515,10 @@ const Simulation = {
 					if (vn < 0) {
 						const e = Math.min(b1.restitution, b2.restitution);
 						
-						const m1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-						const m2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+						const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+						const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
 						
-						const jnVal = -(1 + e) * vn / (m1 + m2);
-						
+						const jnVal = -(1 + e) * vn / (invM1 + invM2);
 						const jnx = jnVal * nx;
 						const jny = jnVal * ny;
 
@@ -525,46 +529,49 @@ const Simulation = {
 						const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
 						const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
 						
-						const massTan = m1 + m2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
+						const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
 						let jtVal = -vt / massTan;
 
-						const maxFric = friction * Math.abs(jnVal);
+						const avgFriction = (b1.friction + b2.friction) / 2;
+						const maxFric = avgFriction * Math.abs(jnVal);
+						
 						if (jtVal > maxFric) jtVal = maxFric;
 						else if (jtVal < -maxFric) jtVal = -maxFric;
 
 						const jtx = jtVal * tx;
 						const jty = jtVal * ty;
 
-						const jx = jnx + jtx;
-						const jy = jny + jty;
-
-						fx += jx / dt;
-						fy += jy / dt;
+						const Jx = jnx + jtx;
+						const Jy = jny + jty;
 
 						if (b1.mass !== -1) {
+							b1.vx += Jx * invM1;
+							b1.vy += Jy * invM1;
 							const torque = (r1x * jty - r1y * jtx);
 							b1.rotationSpeed += torque * i1;
 						}
 						if (b2.mass !== -1) {
+							b2.vx -= Jx * invM2;
+							b2.vy -= Jy * invM2;
 							const torque = (r2x * -jty - r2y * -jtx);
 							b2.rotationSpeed += torque * i2;
 						}
 
 						const correctionPercent = 0.8;
 						const slop = 0.01;
-						const totalInvMass = m1 + m2;
+						const totalInvMass = invM1 + invM2;
 						if (totalInvMass > 0) {
 							const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
 							const cx = correctionMag * nx;
 							const cy = correctionMag * ny;
 
 							if (b1.mass !== -1) {
-								b1.x -= cx * m1;
-								b1.y -= cy * m1;
+								b1.x -= cx * invM1;
+								b1.y -= cy * invM1;
 							}
 							if (b2.mass !== -1) {
-								b2.x += cx * m2;
-								b2.y += cy * m2;
+								b2.x += cx * invM2;
+								b2.y += cy * invM2;
 							}
 						}
 					}
@@ -676,7 +683,9 @@ const Simulation = {
 								const massTan = invMass + (b.radius * b.radius * invInertia);
 								let jtVal = -vt / massTan;
 								
-								const maxFric = friction * Math.abs(jnVal);
+								const avgFriction = (b.friction + barrier.friction) / 2;
+								const maxFric = avgFriction * Math.abs(jnVal);
+								
 								if (jtVal > maxFric) jtVal = maxFric;
 								else if (jtVal < -maxFric) jtVal = -maxFric;
 								
@@ -689,6 +698,7 @@ const Simulation = {
 								const torque = (rcpX * jty - rcpY * jtx);
 								b.rotationSpeed += torque * invInertia;
 							}
+
 						}
 					}
 				}
@@ -775,9 +785,8 @@ const Simulation = {
 	predictPath: function(bodyIndex, numSteps, stepDt) {
 		const tempBodies = JSON.parse(JSON.stringify(this.bodies));
 		if (!tempBodies[bodyIndex]) return [];
+		
 		const c2 = this.c * this.c;
-		const friction = 0.5;
-
 		const predictedPath = [];
 		const count = tempBodies.length;
 		const dt = stepDt;
@@ -835,7 +844,7 @@ const Simulation = {
 
 				let targetLen = bond.length;
 				if (bond.activeAmp !== 0 && bond.activeFreq !== 0) {
-					targetLen = bond.length;
+					targetLen = bond.length; 
 				}
 
 				const displacement = dist - targetLen;
@@ -931,9 +940,9 @@ const Simulation = {
 						const overlap = minDist - dist;
 						const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
 						if (avgYoung > 0) {
-							const m1 = b1.mass === -1 ? b2.mass : b1.mass;
-							const m2 = b2.mass === -1 ? b1.mass : b2.mass;
-							const penetrationForce = avgYoung * overlap * 0.05 * Math.min(m1, m2);
+							const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
+							const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
+							const penetrationForce = avgYoung * overlap * contactWidth;
 							fx -= penetrationForce * nx;
 							fy -= penetrationForce * ny;
 						}
@@ -955,10 +964,10 @@ const Simulation = {
 
 						if (vn < 0) {
 							const e = Math.min(b1.restitution, b2.restitution);
-							const m1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-							const m2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+							const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+							const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
 							
-							const jnVal = -(1 + e) * vn / (m1 + m2);
+							const jnVal = -(1 + e) * vn / (invM1 + invM2);
 							const jnx = jnVal * nx;
 							const jny = jnVal * ny;
 
@@ -969,46 +978,49 @@ const Simulation = {
 							const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
 							const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
 							
-							const massTan = m1 + m2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
+							const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
 							let jtVal = -vt / massTan;
 
-							const maxFric = friction * Math.abs(jnVal);
+							const avgFriction = (b1.friction + b2.friction) / 2;
+							const maxFric = avgFriction * Math.abs(jnVal);
+							
 							if (jtVal > maxFric) jtVal = maxFric;
 							else if (jtVal < -maxFric) jtVal = -maxFric;
 
 							const jtx = jtVal * tx;
 							const jty = jtVal * ty;
 
-							const jx = jnx + jtx;
-							const jy = jny + jty;
+							const Jx = jnx + jtx;
+							const Jy = jny + jty;
 
-							fx += jx / dt;
-							fy += jy / dt;
-							
 							if (b1.mass !== -1) {
+								b1.vx += Jx * invM1;
+								b1.vy += Jy * invM1;
 								const torque = (r1x * jty - r1y * jtx);
 								b1.rotationSpeed += torque * i1;
 							}
 							if (b2.mass !== -1) {
+								b2.vx -= Jx * invM2;
+								b2.vy -= Jy * invM2;
 								const torque = (r2x * -jty - r2y * -jtx);
 								b2.rotationSpeed += torque * i2;
 							}
 							
 							const correctionPercent = 0.8;
 							const slop = 0.01;
-							const totalInvMass = m1 + m2;
+							const totalInvMass = invM1 + invM2;
 							if (totalInvMass > 0) {
 								const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
 								const cx = correctionMag * nx;
 								const cy = correctionMag * ny;
 
 								if (b1.mass !== -1) {
-									b1.x -= cx * m1;
-									b1.y -= cy * m1;
+									b1.x -= cx * invM1;
+									b1.y -= cy * invM1;
 								}
 								if (b2.mass !== -1) {
-									b2.x += cx * m2;
-									b2.y += cy * m2;
+									b2.x += cx * invM2;
+									b2.y += cy * invM2;
 								}
 							}
 						}
@@ -1099,7 +1111,9 @@ const Simulation = {
 									const massTan = invMass + (b.radius * b.radius * invInertia);
 									let jtVal = -vt / massTan;
 									
-									const maxFric = friction * Math.abs(jnVal);
+									const avgFriction = (b.friction + barrier.friction) / 2;
+									const maxFric = avgFriction * Math.abs(jnVal);
+									
 									if (jtVal > maxFric) jtVal = maxFric;
 									else if (jtVal < -maxFric) jtVal = -maxFric;
 									

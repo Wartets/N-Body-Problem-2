@@ -54,7 +54,7 @@
 						<i class="fa-solid fa-pause"></i> Pause
 					</button>
 					<button id="resetBtn" class="btn danger">
-						<i class="fa-solid fa-rotate-right"></i> Reeset
+						<i class="fa-solid fa-rotate-right"></i> Reset
 					</button>
 				</div>
 				<div class="control-row" style="margin-top: 8px;">
@@ -236,6 +236,7 @@
 						<div class="input-wrapper"><label>Rotation Speed</label><input type="number" id="newRotationSpeed"></div>
 						<div class="input-wrapper"><label>Temperature</label><input type="number" id="newTemperature"></div>
 						<div class="input-wrapper"><label>Young's Modulus</label><input type="number" id="newYoungModulus"></div>
+						<div class="input-wrapper"><label>Friction Coeff.</label><input type="number" id="newFriction" min="0" max="2" step="0.01"></div>
 						<div class="input-wrapper"><label>Lifetime (ticks)</label><input type="number" id="newLifetime" min="-1" step="1"></div>
 					</div>
 					
@@ -379,6 +380,5 @@
 			navigator.serviceWorker.register('sw.js');
 		}
 	</script>
-</body>
 </body>
 </html>

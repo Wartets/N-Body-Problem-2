@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	const Sim = window.App.sim;
 	const Render = window.App.render;
 	let maxZIndex = 100;
+	let draggedItemIndex = null;
 
 	const formatVal = (val, prec = 2) => {
 		if (typeof val !== 'number' || isNaN(val)) return val;
@@ -115,44 +116,614 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 
 	const toggleBtn = document.getElementById('togglePanelBtn');
-	toggleBtn.addEventListener('click', () => {
-		panel.classList.toggle('collapsed');
-		toggleBtn.innerHTML = panel.classList.contains('collapsed') ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
-	});
-
+	
 	const panel = document.getElementById('controlPanel');
 	const header = document.getElementById('panelHeader');
 	const toolsPanel = document.getElementById('toolsPanel');
 	const toolsHeader = document.getElementById('toolsHeader');
+	
+	const toggleInjBtn = document.getElementById('toggleInjectionBtn');
+	const injContent = document.getElementById('injectionContent');
+	
+	const toggleDisplayBtn = document.getElementById('toggleDisplayBtn');
+	const displayContent = document.getElementById('displayContent');
+	
+	const bodiesContainer = document.getElementById('bodiesListContainer');
+	const bodyCountLabel = document.getElementById('bodyCount');
 
-	setupDraggable(panel, header, [toolsPanel]);
-	setupDraggable(toolsPanel, toolsHeader, [panel]);
-
+	const toggleBodiesBtn = document.getElementById('toggleBodiesBtn');
+	const bodiesHeader = document.getElementById('bodiesHeader');
+	
+	const toggleViscosityZoneBtn = document.getElementById('toggleViscosityZoneBtn');
+	const viscosityZonesListContainer = document.getElementById('viscosityZonesListContainer');
+	
+	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
+	const zonesListContainer = document.getElementById('zonesListContainer');
+	
+	const toggleBondToolBtn = document.getElementById('toggleBondToolBtn');
+	const bondsListContainer = document.getElementById('bondsListContainer');
+	
+	const toggleFieldZoneToolBtn = document.getElementById('toggleFieldZoneToolBtn');
+	const fieldZonesListContainer = document.getElementById('fieldZonesListContainer');
+	
+	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
+	const fieldDefContent = document.getElementById('fieldDefContent');
+	const fieldsListContainer = document.getElementById('fieldsListContainer');
+	
+	const toggleBarrierToolBtn = document.getElementById('toggleBarrierToolBtn');
+	const barriersListContainer = document.getElementById('barriersListContainer');
+	
+	const bondToolBtn = document.getElementById('toggleBondToolBtn');
+	
+	const playBtn = document.getElementById('playPauseBtn');
+	
 	const toggleToolsBtn = document.getElementById('toggleToolsBtn');
-	toggleToolsBtn.addEventListener('click', () => {
-		const willExpand = toolsPanel.classList.contains('collapsed');
-		toolsPanel.classList.toggle('collapsed');
+	
+	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
+		const bodies = Sim.bodies;
+		let totalMass = 0;
+		let comX = 0;
+		let comY = 0;
+
+		if (bodies.length > 0) {
+			bodies.forEach(b => {
+				totalMass += b.mass;
+				comX += b.x * b.mass;
+				comY += b.y * b.mass;
+			});
+			comX /= totalMass;
+			comY /= totalMass;
+		}
+
+		const zoom = Render.zoom;
+		const viewW = Render.width / zoom;
+		const viewH = Render.height / zoom;
+		const centerX = -Render.camX / zoom;
+		const centerY = -Render.camY / zoom;
 		
-		if (willExpand) {
-			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-minus"></i>';
+		const marginX = viewW * 0.1;
+		const marginY = viewH * 0.1;
+		const rangeX = (viewW / 2) - marginX;
+		const rangeY = (viewH / 2) - marginY;
+
+		let x, y, vx, vy;
+
+		if (setDefault) {
+			x = 10; 
+			y = 10;
+			vx = 0;
+			vy = 0;
+		} else {
+			x = centerX + (Math.random() - 0.5) * 2 * rangeX;
+			y = centerY + (Math.random() - 0.5) * 2 * rangeY;
 			
-			if (window.innerWidth > 600) {
-				const rect = toolsPanel.getBoundingClientRect();
-				if (rect.right > window.innerWidth) {
-					if (toolsPanel.style.left) {
-						const newLeft = window.innerWidth - rect.width - 20;
-						toolsPanel.style.left = Math.max(0, newLeft) + 'px';
-					} else {
-						toolsPanel.style.right = '20px';
-						toolsPanel.style.left = 'auto';
-					}
+			if (totalMass > 0) {
+				const dx = x - comX;
+				const dy = y - comY;
+				const dist = Math.sqrt(dx*dx + dy*dy);
+				
+				if (dist > 0.01) {
+					const v = Math.sqrt((Sim.G * totalMass) / dist);
+					
+					const angle = Math.atan2(dy, dx);
+					const dir = Math.random() > 0.5 ? 1 : -1;
+					
+					vx = -Math.sin(angle) * v * dir;
+					vy = Math.cos(angle) * v * dir;
+					
+					vx += (Math.random() - 0.5) * v * 0.2;
+					vy += (Math.random() - 0.5) * v * 0.2;
+				} else {
+					vx = (Math.random() - 0.5) * 2;
+					vy = (Math.random() - 0.5) * 2;
+				}
+			} else {
+				vx = (Math.random() - 0.5) * 2;
+				vy = (Math.random() - 0.5) * 2;
+			}
+		}
+
+		document.getElementById('newX').value = formatVal(x, 2);
+		document.getElementById('newY').value = formatVal(y, 2);
+		document.getElementById('newVX').value = formatVal(vx, 3);
+		document.getElementById('newVY').value = formatVal(vy, 3);
+		document.getElementById('newAX').value = 0;
+		document.getElementById('newAY').value = 0;
+
+		if (!onlyKinematics) {
+			const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
+			const radius = Math.max(2, Math.log(mass) * 2);
+			const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
+			const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
+			const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
+			const temperature = Math.floor(Math.random() * 1000) + 100;
+			const rotationSpeed = (Math.random() - 0.5) * 0.2;
+			const youngModulus = Math.floor(Math.random() * 1000) + 100;
+			const friction = setDefault ? 0.5 : parseFloat((Math.random() * 0.8 + 0.1).toFixed(2));
+
+			document.getElementById('newMass').value = formatVal(mass, 2);
+			document.getElementById('newRadius').value = formatVal(radius, 2);
+			document.getElementById('newCharge').value = formatVal(charge, 2);
+			document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
+			document.getElementById('newRestitution').value = formatVal(restitution, 2);
+			document.getElementById('newLifetime').value = -1;
+			document.getElementById('newTemperature').value = formatVal(temperature, 0);
+			document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
+			document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
+			document.getElementById('newFriction').value = formatVal(friction, 2);
+			
+			const presetSelect = document.getElementById('presetSelect');
+			if (presetSelect) {
+				presetSelect.value = "";
+				delete presetSelect.dataset.color;
+			}
+		}
+	};
+	
+	const initPresets = () => {
+		const presetSelect = document.getElementById('presetSelect');
+		if (!presetSelect) return;
+
+		const rnd = (min, max) => min + Math.random() * (max - min);
+		const rndInt = (min, max) => Math.floor(rnd(min, max));
+		const logRad = (m) => Math.max(2, Math.log(m) * 2);
+
+		const presets = {
+			"Star: Red Giant": (S) => {
+				const m = rnd(60000, 90000) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m) * 3,
+					charge: rnd(-5, 5),
+					magMoment: rnd(50, 150),
+					restitution: 0.2,
+					temperature: rndInt(3000, 4500),
+					youngModulus: rnd(100, 500),
+					rotationSpeed: rnd(0.001, 0.005),
+					friction: 0.5,
+					color: `hsl(${rndInt(0, 20)}, 100%, 60%)`
+				};
+			},
+			"Star: Yellow Dwarf (Sun)": (S) => {
+				const m = rnd(20000, 30000) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m),
+					charge: 0,
+					magMoment: rnd(10, 50),
+					restitution: 0.5,
+					temperature: rndInt(5500, 6000),
+					youngModulus: rnd(1000, 2000),
+					rotationSpeed: rnd(0.01, 0.03),
+					friction: 0.5,
+					color: `hsl(${rndInt(45, 60)}, 100%, 70%)`
+				};
+			},
+			"Star: White Dwarf": (S) => {
+				const m = rnd(15000, 25000) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m) * 0.5,
+					charge: rnd(0, 10),
+					magMoment: rnd(100, 300),
+					restitution: 0.9,
+					temperature: rndInt(15000, 30000),
+					youngModulus: rnd(50000, 80000),
+					rotationSpeed: rnd(0.1, 0.5),
+					friction: 0.4,
+					color: `hsl(${rndInt(190, 220)}, 50%, 90%)`
+				};
+			},
+			"Star: Neutron": (S) => {
+				const m = rnd(35000, 50000) / (S.G * 2);
+				return {
+					mass: m,
+					radius: 4,
+					charge: rnd(50, 100) / Math.sqrt(S.Ke),
+					magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
+					restitution: 0.95,
+					temperature: rndInt(500000, 1000000),
+					youngModulus: 200000,
+					rotationSpeed: rnd(2.0, 5.0),
+					friction: 0.1,
+					color: '#ffffff'
+				};
+			},
+			"Black Hole (Simulated)": (S) => {
+				const m = rnd(150000, 300000) / (S.G * 2);
+				return {
+					mass: m,
+					radius: 2,
+					charge: 0,
+					magMoment: 0,
+					restitution: 0,
+					temperature: 0,
+					youngModulus: 1000000,
+					rotationSpeed: rnd(1.0, 10.0),
+					friction: 0,
+					color: '#000000'
+				};
+			},
+			"Planet: Gas Giant": (S) => {
+				const m = rnd(1000, 2500) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m) * 1.2,
+					charge: rnd(-2, 2),
+					magMoment: rnd(20, 80),
+					restitution: 0.7,
+					temperature: rndInt(100, 160),
+					youngModulus: rnd(100, 300),
+					rotationSpeed: rnd(0.05, 0.15),
+					friction: 0.2,
+					color: `hsl(${rndInt(25, 45)}, 80%, ${rndInt(50, 70)}%)`
+				};
+			},
+			"Planet: Rocky (Habitable)": (S) => {
+				const m = rnd(80, 150) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m),
+					charge: 0,
+					magMoment: rnd(2, 10),
+					restitution: 0.5,
+					temperature: rndInt(250, 320),
+					youngModulus: rnd(3000, 6000),
+					rotationSpeed: rnd(0.1, 0.3),
+					friction: 0.8,
+					color: `hsl(${rndInt(100, 140)}, 60%, 50%)`
+				};
+			},
+			"Planet: Molten": (S) => {
+				const m = rnd(60, 120) / (S.G * 2);
+				return {
+					mass: m,
+					radius: logRad(m),
+					charge: rnd(0, 5),
+					magMoment: rnd(1, 5),
+					restitution: 0.3,
+					temperature: rndInt(800, 1500),
+					youngModulus: rnd(1000, 2000),
+					rotationSpeed: rnd(0.05, 0.1),
+					friction: 0.6,
+					color: `hsl(${rndInt(0, 20)}, 80%, 40%)`
+				};
+			},
+			"Particle: Electron": (S) => ({
+				mass: 0.5,
+				radius: 2,
+				charge: -20 / Math.sqrt(S.Ke),
+				magMoment: 5 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 8.0,
+				friction: 0.0,
+				color: '#ffff00'
+			}),
+			"Particle: Proton": (S) => ({
+				mass: 50,
+				radius: 4,
+				charge: 20 / Math.sqrt(S.Ke),
+				magMoment: 2 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 1.0,
+				friction: 0.1,
+				color: '#ff3333'
+			}),
+			"Particle: Neutron": (S) => ({
+				mass: 50.1,
+				radius: 4,
+				charge: 0,
+				magMoment: -3 / Math.sqrt(S.Km),
+				restitution: 1.0,
+				temperature: 0,
+				youngModulus: 0,
+				rotationSpeed: 1.0,
+				friction: 0.1,
+				color: '#aaaaaa'
+			}),
+			"Ball: Billiard": (S) => ({
+				mass: 10,
+				radius: 5,
+				charge: 0,
+				magMoment: 0,
+				restitution: 0.98,
+				temperature: 20,
+				youngModulus: 15000,
+				rotationSpeed: 0,
+				friction: 0.2,
+				color: `hsl(${rndInt(0, 360)}, 80%, 50%)`
+			}),
+			"Ball: Pétanque": (S) => ({
+				mass: 40,
+				radius: 5,
+				charge: 0,
+				magMoment: rnd(0, 0.5),
+				restitution: 0.25,
+				temperature: 25,
+				youngModulus: 50000,
+				rotationSpeed: 0,
+				friction: 0.9,
+				color: '#71706e'
+			}),
+			"Ball: Tennis": (S) => ({
+				mass: 3,
+				radius: 4,
+				charge: rnd(0, 2),
+				magMoment: 0,
+				restitution: 0.85,
+				temperature: 20,
+				youngModulus: 2000,
+				rotationSpeed: 0,
+				friction: 0.7,
+				color: '#ccff00'
+			}),
+			"Object: Soap Bubble": (S) => ({
+				mass: 0.1,
+				radius: 10,
+				charge: rnd(1, 3),
+				magMoment: 0,
+				restitution: 0.8,
+				temperature: 15,
+				youngModulus: 10,
+				rotationSpeed: rnd(0.1, 0.5),
+				friction: 0.05,
+				color: 'rgba(200, 240, 255, 0.6)'
+			}),
+			"Object: Magnet": (S) => ({
+				mass: 25,
+				radius: 6,
+				charge: 0,
+				magMoment: rnd(80, 120) / Math.sqrt(S.Km),
+				restitution: 0.5,
+				temperature: 20,
+				youngModulus: 10000,
+				rotationSpeed: 0,
+				friction: 0.5,
+				color: '#ff0000'
+			})
+		};
+
+		Object.keys(presets).forEach(key => {
+			const opt = document.createElement('option');
+			opt.value = key;
+			opt.textContent = key;
+			presetSelect.appendChild(opt);
+		});
+
+		presetSelect.addEventListener('change', () => {
+			const key = presetSelect.value;
+			if (key && presets[key]) {
+				const params = presets[key](Sim);
+				
+				document.getElementById('newMass').value = formatVal(params.mass, 2);
+				document.getElementById('newRadius').value = formatVal(params.radius, 2);
+				document.getElementById('newCharge').value = formatVal(params.charge, 2);
+				document.getElementById('newMagMoment').value = formatVal(params.magMoment, 2);
+				document.getElementById('newRestitution').value = formatVal(params.restitution, 2);
+				document.getElementById('newTemperature').value = formatVal(params.temperature, 0);
+				document.getElementById('newRotationSpeed').value = formatVal(params.rotationSpeed, 3);
+				document.getElementById('newYoungModulus').value = formatVal(params.youngModulus, 0);
+				document.getElementById('newFriction').value = formatVal(params.friction, 2);
+				
+				if (params.color) {
+					presetSelect.dataset.color = params.color;
+				} else {
+					delete presetSelect.dataset.color;
 				}
 			}
-		} else {
-			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
-		}
-	});
+		});
 
+		const inputIds = ['newMass', 'newRadius', 'newX', 'newY', 'newVX', 'newVY', 'newAX', 'newAY', 
+			'newCharge', 'newMagMoment', 'newRestitution', 'newLifetime', 
+			'newTemperature', 'newRotationSpeed', 'newYoungModulus', 'newFriction'];
+		
+		inputIds.forEach(id => {
+			const el = document.getElementById(id);
+			if(el) {
+				el.addEventListener('input', () => {
+					presetSelect.value = "";
+					delete presetSelect.dataset.color;
+				});
+			}
+		});
+	};
+	
+	const initSimPresets = () => {
+		const select = document.getElementById('simPresetSelect');
+		const loadBtn = document.getElementById('loadSimPresetBtn');
+		
+		if (!window.App.presets || window.App.presets.length === 0 || !select) return;
+		
+		select.innerHTML = '';
+		window.App.presets.forEach((preset, index) => {
+			const opt = document.createElement('option');
+			opt.value = index;
+			opt.textContent = preset.name;
+			select.appendChild(opt);
+		});
+		
+		loadBtn.addEventListener('click', () => {
+			const idx = parseInt(select.value, 10);
+			if (window.App.presets[idx]) {
+				Sim.reset();
+				window.App.presets[idx].init(Sim);
+				
+				const updateCheck = (id, val) => {
+					const el = document.getElementById(id);
+					if(el) el.checked = val;
+				};
+				updateCheck('gravBox', Sim.enableGravity);
+				updateCheck('elecBox', Sim.enableElectricity);
+				updateCheck('magBox', Sim.enableMagnetism);
+				updateCheck('colBox', Sim.enableCollision);
+
+				refreshBodyList();
+				refreshZoneList();
+				refreshViscosityZoneList();
+				refreshElasticBondList();
+				refreshSolidBarrierList();
+				refreshFieldZoneList();
+				refreshFieldList();
+				Render.draw();
+			}
+		});
+	};
+	
+	const initBodySorting = () => {
+		const sortContainer = document.getElementById('bodySortContainer');
+		if (!sortContainer) return;
+
+		const sortParams = [
+			{ label: 'Custom (Drag)', key: '' },
+			{ label: 'Name', key: 'name' },
+			{ label: 'Mass', key: 'mass' },
+			{ label: 'Radius', key: 'radius' },
+			{ label: 'Pos X', key: 'x' },
+			{ label: 'Pos Y', key: 'y' },
+			{ label: 'Vel X', key: 'vx' },
+			{ label: 'Vel Y', key: 'vy' },
+			{ label: 'Charge', key: 'charge' },
+			{ label: 'Temp', key: 'temperature' },
+			{ label: 'Color', key: 'color' }
+		];
+
+		let optionsHtml = sortParams.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
+		sortContainer.innerHTML = `
+			<select id="bodySortSelect" class="sort-select">${optionsHtml}</select>
+			<button id="bodySortDirBtn" class="btn secondary" style="width: 30px; padding: 4px;" title="Reverse Order">
+				<i class="fa-solid fa-arrow-down-a-z"></i>
+			</button>
+		`;
+
+		const sortSelect = document.getElementById('bodySortSelect');
+		const sortDirBtn = document.getElementById('bodySortDirBtn');
+		let sortAsc = true;
+
+		const applySort = () => {
+			const key = sortSelect.value;
+			if (!key) return;
+
+			// Sauvegarder la sélection
+			const selectedBody = Render.selectedBodyIdx !== -1 ? Sim.bodies[Render.selectedBodyIdx] : null;
+
+			Sim.bodies.sort((a, b) => {
+				let valA = a[key];
+				let valB = b[key];
+
+				if (typeof valA === 'string') {
+					valA = valA.toLowerCase();
+					valB = valB.toLowerCase();
+					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+				}
+				
+				return sortAsc ? (valA - valB) : (valB - valA);
+			});
+
+			if (selectedBody) {
+				Render.selectedBodyIdx = Sim.bodies.indexOf(selectedBody);
+			}
+
+			refreshBodyList();
+		};
+
+		sortSelect.addEventListener('change', applySort);
+		
+		sortDirBtn.addEventListener('click', () => {
+			sortAsc = !sortAsc;
+			sortDirBtn.innerHTML = sortAsc ? '<i class="fa-solid fa-arrow-down-a-z"></i>' : '<i class="fa-solid fa-arrow-down-z-a"></i>';
+			applySort();
+		});
+	};
+	
+	const bondPresets = {
+		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
+		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
+	};
+	
+	const injectCurrentBody = () => {
+		const m = parseFloat(document.getElementById('newMass').value);
+		const x = parseFloat(document.getElementById('newX').value);
+		const y = parseFloat(document.getElementById('newY').value);
+		const vx = parseFloat(document.getElementById('newVX').value);
+		const vy = parseFloat(document.getElementById('newVY').value);
+		const radius = parseFloat(document.getElementById('newRadius').value);
+		const ax = parseFloat(document.getElementById('newAX').value) || 0;
+		const ay = parseFloat(document.getElementById('newAY').value) || 0;
+		
+		const charge = parseFloat(document.getElementById('newCharge').value) || 0;
+		const magMoment = parseFloat(document.getElementById('newMagMoment').value) || 0;
+		const restitution = parseFloat(document.getElementById('newRestitution').value) || 1.0;
+		const lifetime = parseFloat(document.getElementById('newLifetime').value) || -1;
+		const temperature = parseFloat(document.getElementById('newTemperature').value) || 0;
+		const rotationSpeed = parseFloat(document.getElementById('newRotationSpeed').value) || 0;
+		const youngModulus = parseFloat(document.getElementById('newYoungModulus').value) || 0;
+		const friction = parseFloat(document.getElementById('newFriction').value) || 0.5;
+		
+		const presetColor = document.getElementById('presetSelect').dataset.color || null;
+
+		Sim.addBody(m, x, y, vx, vy, radius, presetColor, null, ax, ay, 
+					charge, magMoment, restitution, 
+					lifetime, temperature, rotationSpeed, youngModulus, friction);
+	};
+	
+	const bindRange = (idInput, idDisplay, obj, prop, isFloat = false, prec = 1) => {
+		const el = document.getElementById(idInput);
+		const disp = document.getElementById(idDisplay);
+		if (!el) return;
+
+		el.value = obj[prop];
+		if (disp) disp.textContent = isFloat ? obj[prop].toFixed(prec) : obj[prop];
+
+		el.addEventListener('input', () => {
+			const val = parseFloat(el.value);
+			obj[prop] = val;
+			if (disp) disp.textContent = isFloat ? val.toFixed(prec) : val;
+		});
+	};
+
+	const bindToggle = (idInput, obj, prop, callback) => {
+		const el = document.getElementById(idInput);
+		if (!el) return;
+
+		el.checked = obj[prop];
+
+		el.addEventListener('change', (e) => {
+			obj[prop] = e.target.checked;
+			if (callback) callback(e.target.checked);
+		});
+	};
+	
+	const toggleFieldDefinition = () => {
+		fieldDefContent.classList.toggle('hidden-content');
+		toggleFieldDefBtn.innerHTML = fieldDefContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+	};
+
+	const toggleBodiesList = () => {
+		bodiesContainer.classList.toggle('hidden-content');
+		const sortContainer = document.getElementById('bodySortContainer');
+		if (sortContainer) {
+			sortContainer.classList.toggle('hidden-content');
+		}
+		if (toggleBodiesBtn) {
+			toggleBodiesBtn.innerHTML = bodiesContainer.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+		}
+	};
+
+	const originalReset = Sim.reset.bind(Sim);
+	const originalAddBody = Sim.addBody.bind(Sim);
+	const originalRemoveBody = Sim.removeBody.bind(Sim);
+	
+	setupDraggable(panel, header, [toolsPanel]);
+	setupDraggable(toolsPanel, toolsHeader, [panel]);
+	
 	document.getElementById('zeroVelBtn').addEventListener('click', () => {
 		Sim.zeroVelocities();
 		if (window.App.ui && window.App.ui.syncInputs) {
@@ -208,15 +779,149 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs();
 	});
 
-	const toggleInjBtn = document.getElementById('toggleInjectionBtn');
-	const injContent = document.getElementById('injectionContent');
+	document.getElementById('addFieldBtn').addEventListener('click', () => {
+		const newField = {
+			name: `Field ${Sim.formulaFields.length + 1}`,
+			formulaX: '0', 
+			formulaY: '0', 
+			color: '#f1c40f',
+			enabled: true
+		};
+		
+		const compiledX = Sim.compileFormula(newField.formulaX);
+		newField.funcEx = compiledX.func;
+		newField.errorX = compiledX.error;
+		
+		const compiledY = Sim.compileFormula(newField.formulaY);
+		newField.funcEy = compiledY.func;
+		newField.errorY = compiledY.error;
+		
+		Sim.formulaFields.push(newField);
+		refreshFieldList();
+		
+		if (fieldDefContent.classList.contains('hidden-content')) {
+			toggleFieldDefBtn.click();
+		}
+	});
+
+	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
+
+	document.getElementById('resetBtn').addEventListener('click', () => {
+		Sim.reset();
+		Sim.paused = true;
+		
+		playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+		playBtn.classList.remove('primary');
+		playBtn.style.color = "#aaa";
+		
+		generateRandomParameters(true);
+		injectCurrentBody();
+		generateRandomParameters(false);
+		
+		refreshBodyList();
+		refreshFieldList();
+		Render.draw(); 
+	});
+	
+	document.getElementById('addBodyBtn').addEventListener('click', () => {
+		injectCurrentBody();
+		const presetSelect = document.getElementById('presetSelect');
+		if (presetSelect && presetSelect.value) {
+			generateRandomParameters(false, true);
+		} else {
+			generateRandomParameters(false, false);
+		}
+	});
+	
+	document.addEventListener('dblclick', (e) => {
+		e.preventDefault();
+	}, { passive: false });
+	
+	toggleBtn.addEventListener('click', () => {
+		panel.classList.toggle('collapsed');
+		toggleBtn.innerHTML = panel.classList.contains('collapsed') ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
+	});
+	
+	toggleToolsBtn.addEventListener('click', () => {
+		const willExpand = toolsPanel.classList.contains('collapsed');
+		toolsPanel.classList.toggle('collapsed');
+		
+		if (willExpand) {
+			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-minus"></i>';
+			
+			if (window.innerWidth > 600) {
+				const rect = toolsPanel.getBoundingClientRect();
+				if (rect.right > window.innerWidth) {
+					if (toolsPanel.style.left) {
+						const newLeft = window.innerWidth - rect.width - 20;
+						toolsPanel.style.left = Math.max(0, newLeft) + 'px';
+					} else {
+						toolsPanel.style.right = '20px';
+						toolsPanel.style.left = 'auto';
+					}
+				}
+			}
+		} else {
+			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+		}
+	});
+
 	toggleInjBtn.addEventListener('click', () => {
 		injContent.classList.toggle('hidden-content');
 		toggleInjBtn.innerHTML = injContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
 	});
 	
-	const toggleDisplayBtn = document.getElementById('toggleDisplayBtn');
-	const displayContent = document.getElementById('displayContent');
+	toggleViscosityZoneBtn.addEventListener('click', () => {
+		if (Render.drawMode === 'viscosity') {
+			Render.drawMode = 'none';
+			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+			toggleViscosityZoneBtn.classList.remove('primary');
+			toggleViscosityZoneBtn.classList.add('secondary');
+			Render.canvas.style.cursor = 'default';
+		} else {
+			Render.drawMode = 'viscosity';
+			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (On)';
+			toggleViscosityZoneBtn.classList.remove('secondary');
+			toggleViscosityZoneBtn.classList.add('primary');
+			
+			if (toggleZoneDrawBtn) {
+				toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+				toggleZoneDrawBtn.classList.remove('primary');
+				toggleZoneDrawBtn.classList.add('secondary');
+			}
+			Render.canvas.style.cursor = 'crosshair';
+		}
+	});
+	
+	toggleZoneDrawBtn.addEventListener('click', () => {
+		if (Render.drawMode === 'periodic') {
+			Render.drawMode = 'none';
+			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+			toggleZoneDrawBtn.classList.remove('primary');
+			toggleZoneDrawBtn.classList.add('secondary');
+			Render.canvas.style.cursor = 'default';
+		} else {
+			Render.drawMode = 'periodic';
+			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (On)';
+			toggleZoneDrawBtn.classList.remove('secondary');
+			toggleZoneDrawBtn.classList.add('primary');
+			Render.canvas.style.cursor = 'crosshair';
+		}
+	});
+
+	playBtn.addEventListener('click', () => {
+		Sim.paused = !Sim.paused;
+		if(Sim.paused) {
+			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+			playBtn.classList.remove('primary');
+			playBtn.style.color = "#aaa";
+		} else {
+			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
+			playBtn.classList.add('primary');
+			playBtn.style.color = "";
+		}
+	});
+	
 	if (toggleDisplayBtn) {
 		toggleDisplayBtn.addEventListener('click', () => {
 			displayContent.classList.toggle('hidden-content');
@@ -224,23 +929,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	const bodiesContainer = document.getElementById('bodiesListContainer');
-	const bodyCountLabel = document.getElementById('bodyCount');
-
-	const toggleBodiesBtn = document.getElementById('toggleBodiesBtn');
-	const bodiesHeader = document.getElementById('bodiesHeader');
-
-	const toggleBodiesList = () => {
-		bodiesContainer.classList.toggle('hidden-content');
-		const sortContainer = document.getElementById('bodySortContainer');
-		if (sortContainer) {
-			sortContainer.classList.toggle('hidden-content');
-		}
-		if (toggleBodiesBtn) {
-			toggleBodiesBtn.innerHTML = bodiesContainer.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
-		}
-	};
-
 	if (toggleBodiesBtn) {
 		toggleBodiesBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
@@ -251,9 +939,236 @@ document.addEventListener('DOMContentLoaded', () => {
 	if (bodiesHeader) {
 		bodiesHeader.addEventListener('click', toggleBodiesList);
 	}
+	
+	if (toggleZoneDrawBtn) {
+		toggleZoneDrawBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'viscosity') {
+				toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+				toggleViscosityZoneBtn.classList.remove('primary');
+				toggleViscosityZoneBtn.classList.add('secondary');
+			}
+		});
+	}
+	
+	if (toggleBarrierToolBtn) {
+		toggleBarrierToolBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'barrier') {
+				Render.drawMode = 'none';
+				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
+				toggleBarrierToolBtn.classList.remove('primary');
+				toggleBarrierToolBtn.classList.add('secondary');
+				Render.canvas.style.cursor = 'default';
+			} else {
+				Render.drawMode = 'barrier';
+				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (On)';
+				toggleBarrierToolBtn.classList.remove('secondary');
+				toggleBarrierToolBtn.classList.add('primary');
+				
+				if (toggleBondToolBtn) {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+				if (toggleViscosityZoneBtn) {
+					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+					toggleViscosityZoneBtn.classList.remove('primary');
+					toggleViscosityZoneBtn.classList.add('secondary');
+				}
+				if (toggleZoneDrawBtn) {
+					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+					toggleZoneDrawBtn.classList.remove('primary');
+					toggleZoneDrawBtn.classList.add('secondary');
+				}
+				
+				Render.canvas.style.cursor = 'crosshair';
+			}
+		});
+		
+		if (toggleBondToolBtn) {
+			toggleBondToolBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'bond') {
+					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
+					toggleBarrierToolBtn.classList.remove('primary');
+					toggleBarrierToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		if (toggleViscosityZoneBtn) {
+			toggleViscosityZoneBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'viscosity') {
+					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
+					toggleBarrierToolBtn.classList.remove('primary');
+					toggleBarrierToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		if (toggleZoneDrawBtn) {
+			toggleZoneDrawBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'periodic') {
+					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
+					toggleBarrierToolBtn.classList.remove('primary');
+					toggleBarrierToolBtn.classList.add('secondary');
+				}
+			});
+		}
+	}
 
-	let draggedItemIndex = null;
+	if (toggleFieldZoneToolBtn) {
+		toggleFieldZoneToolBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'field') {
+				Render.drawMode = 'none';
+				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
+				toggleFieldZoneToolBtn.classList.remove('primary');
+				toggleFieldZoneToolBtn.classList.add('secondary');
+				Render.canvas.style.cursor = 'default';
+			} else {
+				Render.drawMode = 'field';
+				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (On)';
+				toggleFieldZoneToolBtn.classList.remove('secondary');
+				toggleFieldZoneToolBtn.classList.add('primary');
+				
+				if (toggleViscosityZoneBtn) {
+					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+					toggleViscosityZoneBtn.classList.remove('primary');
+					toggleViscosityZoneBtn.classList.add('secondary');
+				}
+				if (toggleZoneDrawBtn) {
+					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+					toggleZoneDrawBtn.classList.remove('primary');
+					toggleZoneDrawBtn.classList.add('secondary');
+				}
+				if (toggleBondToolBtn) {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+				if (toggleBarrierToolBtn) {
+					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
+					toggleBarrierToolBtn.classList.remove('primary');
+					toggleBarrierToolBtn.classList.add('secondary');
+				}
+				
+				Render.canvas.style.cursor = 'crosshair';
+			}
+		});
 
+		// Desactivation croisée pour les autres boutons
+		if (toggleViscosityZoneBtn) {
+			toggleViscosityZoneBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'viscosity') {
+					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
+					toggleFieldZoneToolBtn.classList.remove('primary');
+					toggleFieldZoneToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		if (toggleZoneDrawBtn) {
+			toggleZoneDrawBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'periodic') {
+					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
+					toggleFieldZoneToolBtn.classList.remove('primary');
+					toggleFieldZoneToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		if (toggleBondToolBtn) {
+			toggleBondToolBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'bond') {
+					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
+					toggleFieldZoneToolBtn.classList.remove('primary');
+					toggleFieldZoneToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		if (toggleBarrierToolBtn) {
+			toggleBarrierToolBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'barrier') {
+					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
+					toggleFieldZoneToolBtn.classList.remove('primary');
+					toggleFieldZoneToolBtn.classList.add('secondary');
+				}
+			});
+		}
+	}
+
+	if (toggleBondToolBtn) {
+		toggleBondToolBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'bond') {
+				Render.drawMode = 'none';
+				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+				toggleBondToolBtn.classList.remove('primary');
+				toggleBondToolBtn.classList.add('secondary');
+				Render.canvas.style.cursor = 'default';
+			} else {
+				Render.drawMode = 'bond';
+				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (On)';
+				toggleBondToolBtn.classList.remove('secondary');
+				toggleBondToolBtn.classList.add('primary');
+				
+				if (toggleViscosityZoneBtn) {
+					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+					toggleViscosityZoneBtn.classList.remove('primary');
+					toggleViscosityZoneBtn.classList.add('secondary');
+				}
+				if (toggleZoneDrawBtn) {
+					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+					toggleZoneDrawBtn.classList.remove('primary');
+					toggleZoneDrawBtn.classList.add('secondary');
+				}
+				
+				Render.canvas.style.cursor = 'crosshair';
+			}
+		});
+		
+		if (toggleViscosityZoneBtn) {
+			toggleViscosityZoneBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'viscosity') {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+			});
+		}
+		
+		if (toggleZoneDrawBtn) {
+			toggleZoneDrawBtn.addEventListener('click', () => {
+				if (Render.drawMode === 'periodic') {
+					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
+					toggleBondToolBtn.classList.remove('primary');
+					toggleBondToolBtn.classList.add('secondary');
+				}
+			});
+		}
+	}
+
+	if (bondToolBtn) {
+		const presetContainer = document.createElement('div');
+		presetContainer.style.marginBottom = '8px';
+		presetContainer.innerHTML = `
+			<div class="control-row" style="margin-bottom:4px;"><label>Bond Preset</label></div>
+			<select id="bondPresetSelect" style="width:100%; padding:6px; background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:3px; outline:none; font-family:var(--font-ui); font-size:11px;">
+				<option value="spring">Spring (Default)</option>
+				<option value="rope">Rope (Tension only)</option>
+				<option value="rod">Rigid Rod</option>
+				<option value="chain">Chain (Non-linear)</option>
+				<option value="muscle">Muscle (Active)</option>
+				<option value="weak">Weak Link (Breakable)</option>
+			</select>
+		`;
+		
+		bondToolBtn.parentNode.insertBefore(presetContainer, bondToolBtn.nextSibling.nextSibling); // Insert after divider-sub if present
+	}
+	
+	if (toggleFieldDefBtn) {
+		toggleFieldDefBtn.addEventListener('click', toggleFieldDefinition);
+	}
+	
+	if (fieldDefContent.classList.contains('hidden-content')) {
+		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+	} else {
+		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
+	}
+	
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
 		div.className = 'body-card';
@@ -273,20 +1188,21 @@ document.addEventListener('DOMContentLoaded', () => {
 				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
 			</div>
 			<div class="card-grid">
-				<div class="mini-input-group"><label>Mass</label><input type="number" class="inp-mass" value="${Math.round(body.mass)}" step="10"></div>
-				<div class="mini-input-group"><label>Radius</label><input type="number" class="inp-radius" value="${body.radius.toFixed(1)}" step="0.5"></div>
-				<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-restitution" value="${body.restitution.toFixed(2)}" min="0" max="1" step="0.01"></div>
-				<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-x" value="${body.x.toFixed(1)}"></div>
-				<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-y" value="${body.y.toFixed(1)}"></div>
-				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${body.charge.toFixed(2)}" step="0.1"></div>
-				<div class="mini-input-group"><label>Velocity X</label><input type="number" class="inp-vx" value="${body.vx.toFixed(2)}" step="0.1"></div>
-				<div class="mini-input-group"><label>Velocity Y</label><input type="number" class="inp-vy" value="${body.vy.toFixed(2)}" step="0.1"></div>
-				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${body.magMoment.toFixed(2)}" step="0.1"></div>
-				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${body.startAx.toFixed(3)}" step="0.01"></div>
-				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${body.startAy.toFixed(3)}" step="0.01"></div>
-				<div class="mini-input-group"><label>Rotation Speed</label><input type="number" class="inp-rotSpeed" value="${body.rotationSpeed.toFixed(2)}" step="0.01"></div>
-				<div class="mini-input-group"><label>Temperature</label><input type="number" class="inp-temp" value="${body.temperature.toFixed(0)}" step="1"></div>
-				<div class="mini-input-group"><label>Young's Mod.</label><input type="number" class="inp-youngMod" value="${body.youngModulus.toFixed(0)}" step="1"></div>
+				<div class="mini-input-group"><label>Mass</label><input type="number" class="inp-mass" value="${body.mass}" step="10"></div>
+				<div class="mini-input-group"><label>Radius</label><input type="number" class="inp-radius" value="${body.radius}" step="0.5"></div>
+				<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-restitution" value="${body.restitution}" min="0" max="1" step="0.01"></div>
+				<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-x" value="${body.x}"></div>
+				<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-y" value="${body.y}"></div>
+				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${body.charge}" step="0.1"></div>
+				<div class="mini-input-group"><label>Velocity X</label><input type="number" class="inp-vx" value="${body.vx}" step="0.1"></div>
+				<div class="mini-input-group"><label>Velocity Y</label><input type="number" class="inp-vy" value="${body.vy}" step="0.1"></div>
+				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${body.magMoment}" step="0.1"></div>
+				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${body.startAx}" step="0.01"></div>
+				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${body.startAy}" step="0.01"></div>
+				<div class="mini-input-group"><label>Rotation Speed</label><input type="number" class="inp-rotSpeed" value="${body.rotationSpeed}" step="0.01"></div>
+				<div class="mini-input-group"><label>Temperature</label><input type="number" class="inp-temp" value="${body.temperature}" step="1"></div>
+				<div class="mini-input-group"><label>Young's Mod.</label><input type="number" class="inp-youngMod" value="${body.youngModulus}" step="1"></div>
+				<div class="mini-input-group"><label>Friction</label><input type="number" class="inp-friction" value="${body.friction}" min="0" max="2" step="0.01"></div>
 				<div class="mini-input-group"><label>Lifetime</label><input type="number" class="inp-lifetime" value="${body.lifetime}" min="-1" step="1"></div>
 			</div>
 		`;
@@ -331,6 +1247,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		const inpTemp = div.querySelector('.inp-temp');
 		const inpRotSpeed = div.querySelector('.inp-rotSpeed');
 		const inpYoungMod = div.querySelector('.inp-youngMod');
+		const inpFriction = div.querySelector('.inp-friction');
 
 		const updatePhysics = () => {
 			const rawMass = parseFloat(inpMass.value);
@@ -368,10 +1285,15 @@ document.addEventListener('DOMContentLoaded', () => {
 			const rawYoung = parseFloat(inpYoungMod.value);
 			body.youngModulus = rawYoung >= 0 ? rawYoung : 0;
 			if (body.youngModulus !== rawYoung) inpYoungMod.value = body.youngModulus;
+
+			const rawFriction = parseFloat(inpFriction.value);
+			body.friction = rawFriction >= 0 ? rawFriction : 0.5;
+			if (body.friction !== rawFriction) inpFriction.value = body.friction;
 		};
 
 		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
-		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, inpRotSpeed, inpYoungMod].forEach(inp => {
+		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, 
+		 inpRotSpeed, inpYoungMod, inpFriction].forEach(inp => {
 			inp.addEventListener('change', updatePhysics);
 			inp.addEventListener('input', updatePhysics);
 			inp.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -440,73 +1362,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			window.App.ui.highlightBody(Render.selectedBodyIdx);
 		}
 	}
-	
-	const initBodySorting = () => {
-		const sortContainer = document.getElementById('bodySortContainer');
-		if (!sortContainer) return;
-
-		const sortParams = [
-			{ label: 'Custom (Drag)', key: '' },
-			{ label: 'Name', key: 'name' },
-			{ label: 'Mass', key: 'mass' },
-			{ label: 'Radius', key: 'radius' },
-			{ label: 'Pos X', key: 'x' },
-			{ label: 'Pos Y', key: 'y' },
-			{ label: 'Vel X', key: 'vx' },
-			{ label: 'Vel Y', key: 'vy' },
-			{ label: 'Charge', key: 'charge' },
-			{ label: 'Temp', key: 'temperature' },
-			{ label: 'Color', key: 'color' }
-		];
-
-		let optionsHtml = sortParams.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
-		sortContainer.innerHTML = `
-			<select id="bodySortSelect" class="sort-select">${optionsHtml}</select>
-			<button id="bodySortDirBtn" class="btn secondary" style="width: 30px; padding: 4px;" title="Reverse Order">
-				<i class="fa-solid fa-arrow-down-a-z"></i>
-			</button>
-		`;
-
-		const sortSelect = document.getElementById('bodySortSelect');
-		const sortDirBtn = document.getElementById('bodySortDirBtn');
-		let sortAsc = true;
-
-		const applySort = () => {
-			const key = sortSelect.value;
-			if (!key) return;
-
-			// Sauvegarder la sélection
-			const selectedBody = Render.selectedBodyIdx !== -1 ? Sim.bodies[Render.selectedBodyIdx] : null;
-
-			Sim.bodies.sort((a, b) => {
-				let valA = a[key];
-				let valB = b[key];
-
-				if (typeof valA === 'string') {
-					valA = valA.toLowerCase();
-					valB = valB.toLowerCase();
-					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-				}
-				
-				return sortAsc ? (valA - valB) : (valB - valA);
-			});
-
-			if (selectedBody) {
-				Render.selectedBodyIdx = Sim.bodies.indexOf(selectedBody);
-			}
-
-			refreshBodyList();
-		};
-
-		sortSelect.addEventListener('change', applySort);
-		
-		sortDirBtn.addEventListener('click', () => {
-			sortAsc = !sortAsc;
-			sortDirBtn.innerHTML = sortAsc ? '<i class="fa-solid fa-arrow-down-a-z"></i>' : '<i class="fa-solid fa-arrow-down-z-a"></i>';
-			applySort();
-		});
-	};
-	initBodySorting();
 	
 	function createFieldCard(field, index) {
 		const div = document.createElement('div');
@@ -622,69 +1477,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	document.getElementById('addFieldBtn').addEventListener('click', () => {
-		const newField = {
-			name: `Field ${Sim.formulaFields.length + 1}`,
-			formulaX: '0', 
-			formulaY: '0', 
-			color: '#f1c40f',
-			enabled: true
-		};
-		
-		const compiledX = Sim.compileFormula(newField.formulaX);
-		newField.funcEx = compiledX.func;
-		newField.errorX = compiledX.error;
-		
-		const compiledY = Sim.compileFormula(newField.formulaY);
-		newField.funcEy = compiledY.func;
-		newField.errorY = compiledY.error;
-		
-		Sim.formulaFields.push(newField);
-		refreshFieldList();
-		
-		if (fieldDefContent.classList.contains('hidden-content')) {
-			toggleFieldDefBtn.click();
-		}
-	});
-	
-	const toggleViscosityZoneBtn = document.getElementById('toggleViscosityZoneBtn');
-	const viscosityZonesListContainer = document.getElementById('viscosityZonesListContainer');
-	
-	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
-	const zonesListContainer = document.getElementById('zonesListContainer');
-
-	toggleViscosityZoneBtn.addEventListener('click', () => {
-		if (Render.drawMode === 'viscosity') {
-			Render.drawMode = 'none';
-			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-			toggleViscosityZoneBtn.classList.remove('primary');
-			toggleViscosityZoneBtn.classList.add('secondary');
-			Render.canvas.style.cursor = 'default';
-		} else {
-			Render.drawMode = 'viscosity';
-			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (On)';
-			toggleViscosityZoneBtn.classList.remove('secondary');
-			toggleViscosityZoneBtn.classList.add('primary');
-			
-			if (toggleZoneDrawBtn) {
-				toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-				toggleZoneDrawBtn.classList.remove('primary');
-				toggleZoneDrawBtn.classList.add('secondary');
-			}
-			Render.canvas.style.cursor = 'crosshair';
-		}
-	});
-
-	if (toggleZoneDrawBtn) {
-		toggleZoneDrawBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'viscosity') {
-				toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-				toggleViscosityZoneBtn.classList.remove('primary');
-				toggleViscosityZoneBtn.classList.add('secondary');
-			}
-		});
-	}
-
 	function refreshViscosityZoneList() {
 		viscosityZonesListContainer.innerHTML = '';
 		Sim.viscosityZones.forEach((zone) => {
@@ -773,142 +1565,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	const originalAddBody = Sim.addBody.bind(Sim);
-	Sim.addBody = function(...args) {
-		originalAddBody(...args);
-		refreshBodyList();
-	};
-	
-	const originalRemoveBody = Sim.removeBody.bind(Sim);
-	Sim.removeBody = function(index) {
-		originalRemoveBody(index);
-		refreshBodyList();
-		refreshElasticBondList();
-	};
-
-	const originalReset = Sim.reset.bind(Sim);
-	Sim.reset = function() {
-		originalReset();
-		refreshBodyList();
-		refreshZoneList();
-		refreshViscosityZoneList();
-		refreshElasticBondList();
-		refreshSolidBarrierList();
-		refreshFieldZoneList();
-	};
-	
-	window.App.ui = {
-		syncInputs: function() {
-			const cards = bodiesContainer.children;
-			for (let i = 0; i < cards.length; i++) {
-				const index = parseInt(cards[i].dataset.index);
-				const body = Sim.bodies[index];
-				if (!body) continue;
-
-				const inpX = cards[i].querySelector('.inp-x');
-				const inpY = cards[i].querySelector('.inp-y');
-				const inpVX = cards[i].querySelector('.inp-vx');
-				const inpVY = cards[i].querySelector('.inp-vy');
-				const inpAX = cards[i].querySelector('.inp-start-ax'); 
-				const inpAY = cards[i].querySelector('.inp-start-ay'); 
-				const inpRadius = cards[i].querySelector('.inp-radius');
-
-				const inpCharge = cards[i].querySelector('.inp-charge');
-				const inpMagMoment = cards[i].querySelector('.inp-magMoment');
-				const inpRestitution = cards[i].querySelector('.inp-restitution');
-				const inpLifetime = cards[i].querySelector('.inp-lifetime');
-				const inpTemp = cards[i].querySelector('.inp-temp');
-				const inpRotSpeed = cards[i].querySelector('.inp-rotSpeed');
-				const inpYoungMod = cards[i].querySelector('.inp-youngMod');
-
-				if (document.activeElement !== inpX) inpX.value = formatVal(body.x, 2);
-				if (document.activeElement !== inpY) inpY.value = formatVal(body.y, 2);
-				if (document.activeElement !== inpVX) inpVX.value = formatVal(body.vx, 3);
-				if (document.activeElement !== inpVY) inpVY.value = formatVal(body.vy, 3);
-				if (document.activeElement !== inpAX) inpAX.value = formatVal(body.startAx, 3);
-				if (document.activeElement !== inpAY) inpAY.value = formatVal(body.startAy, 3);
-				if (document.activeElement !== inpRadius) inpRadius.value = formatVal(body.radius, 2);
-
-				if (document.activeElement !== inpCharge) inpCharge.value = formatVal(body.charge, 2);
-				if (document.activeElement !== inpMagMoment) inpMagMoment.value = formatVal(body.magMoment, 2);
-				if (document.activeElement !== inpRestitution) inpRestitution.value = formatVal(body.restitution, 2);
-				if (document.activeElement !== inpLifetime) inpLifetime.value = body.lifetime;
-				if (document.activeElement !== inpTemp) inpTemp.value = formatVal(body.temperature, 0);
-				if (document.activeElement !== inpRotSpeed) inpRotSpeed.value = formatVal(body.rotationSpeed, 3);
-				if (document.activeElement !== inpYoungMod) inpYoungMod.value = formatVal(body.youngModulus, 0);
-			}
-		},
-		
-		highlightBody: function(index) {
-			const cards = document.querySelectorAll('.body-card');
-			cards.forEach(c => c.classList.remove('selected'));
-			
-			const card = document.querySelector(`.body-card[data-index="${index}"]`);
-			if (card) {
-				card.classList.add('selected');
-				card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-				
-				const container = document.getElementById('bodiesListContainer');
-				if (container.classList.contains('hidden-content')) {
-					document.getElementById('toggleBodiesBtn').click();
-				}
-			}
-		},
-	};
-	
-	const toggleBondToolBtn = document.getElementById('toggleBondToolBtn');
-	const bondsListContainer = document.getElementById('bondsListContainer');
-	
-	if (toggleBondToolBtn) {
-		toggleBondToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'bond') {
-				Render.drawMode = 'none';
-				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-				toggleBondToolBtn.classList.remove('primary');
-				toggleBondToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'bond';
-				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (On)';
-				toggleBondToolBtn.classList.remove('secondary');
-				toggleBondToolBtn.classList.add('primary');
-				
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-		
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
-
 	function refreshElasticBondList() {
 		if (!bondsListContainer) return;
 		bondsListContainer.innerHTML = '';
@@ -1007,72 +1663,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	const toggleBarrierToolBtn = document.getElementById('toggleBarrierToolBtn');
-	const barriersListContainer = document.getElementById('barriersListContainer');
-	
-	if (toggleBarrierToolBtn) {
-		toggleBarrierToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'barrier') {
-				Render.drawMode = 'none';
-				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-				toggleBarrierToolBtn.classList.remove('primary');
-				toggleBarrierToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'barrier';
-				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (On)';
-				toggleBarrierToolBtn.classList.remove('secondary');
-				toggleBarrierToolBtn.classList.add('primary');
-				
-				if (toggleBondToolBtn) {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-		
-		if (toggleBondToolBtn) {
-			toggleBondToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'bond') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
-
 	function refreshSolidBarrierList() {
 		if (!barriersListContainer) return;
 		barriersListContainer.innerHTML = '';
@@ -1110,9 +1700,9 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div class="mini-input-group"><label>X2</label><input type="number" class="inp-bx2" value="${barrier.x2.toFixed(1)}"></div>
 					<div class="mini-input-group"><label>Y2</label><input type="number" class="inp-by2" value="${barrier.y2.toFixed(1)}"></div>
 				</div>
-				<div class="mini-input-group" style="margin-top:4px;">
-					<label>Restitution</label>
-					<input type="number" class="inp-brest" value="${barrier.restitution.toFixed(2)}" step="0.05" min="0" max="2">
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+					<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-brest" value="${barrier.restitution.toFixed(2)}" step="0.05" min="0" max="2"></div>
+					<div class="mini-input-group"><label>Friction</label><input type="number" class="inp-bfric" value="${(barrier.friction !== undefined ? barrier.friction : 0.5).toFixed(2)}" step="0.05" min="0" max="2"></div>
 				</div>
 			`;
 			
@@ -1125,6 +1715,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			const inpX2 = div.querySelector('.inp-bx2');
 			const inpY2 = div.querySelector('.inp-by2');
 			const inpRest = div.querySelector('.inp-brest');
+			const inpFric = div.querySelector('.inp-bfric');
 			
 			const updateBarrier = () => {
 				barrier.x1 = parseFloat(inpX1.value) || 0;
@@ -1135,9 +1726,13 @@ document.addEventListener('DOMContentLoaded', () => {
 				const rawRest = parseFloat(inpRest.value);
 				barrier.restitution = rawRest >= 0 ? rawRest : 0.8;
 				if (barrier.restitution !== rawRest) inpRest.value = barrier.restitution;
+
+				const rawFric = parseFloat(inpFric.value);
+				barrier.friction = rawFric >= 0 ? rawFric : 0.5;
+				if (barrier.friction !== rawFric) inpFric.value = barrier.friction;
 			};
 			
-			[inpX1, inpY1, inpX2, inpY2, inpRest].forEach(inp => {
+			[inpX1, inpY1, inpX2, inpY2, inpRest, inpFric].forEach(inp => {
 				inp.addEventListener('change', updateBarrier);
 				inp.addEventListener('input', updateBarrier);
 			});
@@ -1153,87 +1748,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	const toggleFieldZoneToolBtn = document.getElementById('toggleFieldZoneToolBtn');
-	const fieldZonesListContainer = document.getElementById('fieldZonesListContainer');
-	
-	if (toggleFieldZoneToolBtn) {
-		toggleFieldZoneToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'field') {
-				Render.drawMode = 'none';
-				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-				toggleFieldZoneToolBtn.classList.remove('primary');
-				toggleFieldZoneToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'field';
-				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (On)';
-				toggleFieldZoneToolBtn.classList.remove('secondary');
-				toggleFieldZoneToolBtn.classList.add('primary');
-				
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				if (toggleBondToolBtn) {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-				if (toggleBarrierToolBtn) {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-
-		// Desactivation croisée pour les autres boutons
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleBondToolBtn) {
-			toggleBondToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'bond') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleBarrierToolBtn) {
-			toggleBarrierToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'barrier') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
-
 	function refreshFieldZoneList() {
 		if (!fieldZonesListContainer) return;
 		fieldZonesListContainer.innerHTML = '';
@@ -1314,488 +1828,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				Sim.removeFieldZone(zone.id);
 				if (Render.selectedFieldZoneId === zone.id) Render.selectedFieldZoneId = null;
 				refreshFieldZoneList();
-				Sim.removeBody(index);
 			});
 
 			fieldZonesListContainer.appendChild(div);
 		});
 	}
-
-	window.App.ui.refreshFieldZones = refreshFieldZoneList;
-	
-	window.App.ui.refreshSolidBarrierList = refreshSolidBarrierList;
-	
-	window.App.ui.refreshElasticBondList = refreshElasticBondList;
-	
-	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
-	
-	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
-		const bodies = Sim.bodies;
-		let totalMass = 0;
-		let comX = 0;
-		let comY = 0;
-
-		if (bodies.length > 0) {
-			bodies.forEach(b => {
-				totalMass += b.mass;
-				comX += b.x * b.mass;
-				comY += b.y * b.mass;
-			});
-			comX /= totalMass;
-			comY /= totalMass;
-		}
-
-		const zoom = Render.zoom;
-		const viewW = Render.width / zoom;
-		const viewH = Render.height / zoom;
-		const centerX = -Render.camX / zoom;
-		const centerY = -Render.camY / zoom;
-		
-		const marginX = viewW * 0.1;
-		const marginY = viewH * 0.1;
-		const rangeX = (viewW / 2) - marginX;
-		const rangeY = (viewH / 2) - marginY;
-
-		let x, y, vx, vy;
-
-		if (setDefault) {
-			x = 10; 
-			y = 10;
-			vx = 0;
-			vy = 0;
-		} else {
-			x = centerX + (Math.random() - 0.5) * 2 * rangeX;
-			y = centerY + (Math.random() - 0.5) * 2 * rangeY;
-			
-			if (totalMass > 0) {
-				const dx = x - comX;
-				const dy = y - comY;
-				const dist = Math.sqrt(dx*dx + dy*dy);
-				const v = Math.sqrt((Sim.G * totalMass) / dist);
-				
-				const angle = Math.atan2(dy, dx);
-				const dir = Math.random() > 0.5 ? 1 : -1;
-				
-				vx = -Math.sin(angle) * v * dir;
-				vy = Math.cos(angle) * v * dir;
-				
-				vx += (Math.random() - 0.5) * v * 0.2;
-				vy += (Math.random() - 0.5) * v * 0.2;
-			} else {
-				vx = (Math.random() - 0.5) * 2;
-				vy = (Math.random() - 0.5) * 2;
-			}
-		}
-
-		document.getElementById('newX').value = formatVal(x, 2);
-		document.getElementById('newY').value = formatVal(y, 2);
-		document.getElementById('newVX').value = formatVal(vx, 3);
-		document.getElementById('newVY').value = formatVal(vy, 3);
-		document.getElementById('newAX').value = 0;
-		document.getElementById('newAY').value = 0;
-
-		if (!onlyKinematics) {
-			const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
-			const radius = Math.max(2, Math.log(mass) * 2);
-			const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
-			const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
-			const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
-			const temperature = Math.floor(Math.random() * 1000) + 100;
-			const rotationSpeed = (Math.random() - 0.5) * 0.2;
-			const youngModulus = Math.floor(Math.random() * 1000) + 100;
-
-			document.getElementById('newMass').value = formatVal(mass, 2);
-			document.getElementById('newRadius').value = formatVal(radius, 2);
-			document.getElementById('newCharge').value = formatVal(charge, 2);
-			document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
-			document.getElementById('newRestitution').value = formatVal(restitution, 2);
-			document.getElementById('newLifetime').value = -1;
-			document.getElementById('newTemperature').value = formatVal(temperature, 0);
-			document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
-			document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
-			
-			const presetSelect = document.getElementById('presetSelect');
-			if (presetSelect) {
-				presetSelect.value = "";
-				delete presetSelect.dataset.color;
-			}
-		}
-	};
-	
-	const initPresets = () => {
-		const presetSelect = document.getElementById('presetSelect');
-		if (!presetSelect) return;
-
-		const rnd = (min, max) => min + Math.random() * (max - min);
-		const rndInt = (min, max) => Math.floor(rnd(min, max));
-		const logRad = (m) => Math.max(2, Math.log(m) * 2);
-
-		const presets = {
-			"Star: Red Giant": (S) => {
-				const m = rnd(60000, 90000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 3,
-					charge: rnd(-5, 5),
-					magMoment: rnd(50, 150),
-					restitution: 0.2,
-					temperature: rndInt(3000, 4500),
-					youngModulus: rnd(100, 500),
-					rotationSpeed: rnd(0.001, 0.005),
-					color: `hsl(${rndInt(0, 20)}, 100%, 60%)`
-				};
-			},
-			"Star: Yellow Dwarf (Sun)": (S) => {
-				const m = rnd(20000, 30000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: 0,
-					magMoment: rnd(10, 50),
-					restitution: 0.5,
-					temperature: rndInt(5500, 6000),
-					youngModulus: rnd(1000, 2000),
-					rotationSpeed: rnd(0.01, 0.03),
-					color: `hsl(${rndInt(45, 60)}, 100%, 70%)`
-				};
-			},
-			"Star: White Dwarf": (S) => {
-				const m = rnd(15000, 25000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 0.5,
-					charge: rnd(0, 10),
-					magMoment: rnd(100, 300),
-					restitution: 0.9,
-					temperature: rndInt(15000, 30000),
-					youngModulus: rnd(50000, 80000),
-					rotationSpeed: rnd(0.1, 0.5),
-					color: `hsl(${rndInt(190, 220)}, 50%, 90%)`
-				};
-			},
-			"Star: Neutron": (S) => {
-				const m = rnd(35000, 50000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: 4,
-					charge: rnd(50, 100) / Math.sqrt(S.Ke),
-					magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
-					restitution: 0.95,
-					temperature: rndInt(500000, 1000000),
-					youngModulus: 200000,
-					rotationSpeed: rnd(2.0, 5.0),
-					color: '#ffffff'
-				};
-			},
-			"Black Hole (Simulated)": (S) => {
-				const m = rnd(150000, 300000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: 2,
-					charge: 0,
-					magMoment: 0,
-					restitution: 0,
-					temperature: 0,
-					youngModulus: 1000000,
-					rotationSpeed: rnd(1.0, 10.0),
-					color: '#000000'
-				};
-			},
-			"Planet: Gas Giant": (S) => {
-				const m = rnd(1000, 2500) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 1.2,
-					charge: rnd(-2, 2),
-					magMoment: rnd(20, 80),
-					restitution: 0.7,
-					temperature: rndInt(100, 160),
-					youngModulus: rnd(100, 300),
-					rotationSpeed: rnd(0.05, 0.15),
-					color: `hsl(${rndInt(25, 45)}, 80%, ${rndInt(50, 70)}%)`
-				};
-			},
-			"Planet: Rocky (Habitable)": (S) => {
-				const m = rnd(80, 150) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: 0,
-					magMoment: rnd(2, 10),
-					restitution: 0.5,
-					temperature: rndInt(250, 320),
-					youngModulus: rnd(3000, 6000),
-					rotationSpeed: rnd(0.1, 0.3),
-					color: `hsl(${rndInt(100, 140)}, 60%, 50%)`
-				};
-			},
-			"Planet: Molten": (S) => {
-				const m = rnd(60, 120) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: rnd(0, 5),
-					magMoment: rnd(1, 5),
-					restitution: 0.3,
-					temperature: rndInt(800, 1500),
-					youngModulus: rnd(1000, 2000),
-					rotationSpeed: rnd(0.05, 0.1),
-					color: `hsl(${rndInt(0, 20)}, 80%, 40%)`
-				};
-			},
-			"Particle: Electron": (S) => ({
-				mass: 0.5,
-				radius: 2,
-				charge: -20 / Math.sqrt(S.Ke),
-				magMoment: 5 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 8.0,
-				color: '#ffff00'
-			}),
-			"Particle: Proton": (S) => ({
-				mass: 50,
-				radius: 4,
-				charge: 20 / Math.sqrt(S.Ke),
-				magMoment: 2 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 1.0,
-				color: '#ff3333'
-			}),
-			"Particle: Neutron": (S) => ({
-				mass: 50.1,
-				radius: 4,
-				charge: 0,
-				magMoment: -3 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 1.0,
-				color: '#aaaaaa'
-			}),
-			"Ball: Billiard": (S) => ({
-				mass: 10,
-				radius: 5,
-				charge: 0,
-				magMoment: 0,
-				restitution: 0.98,
-				temperature: 20,
-				youngModulus: 15000,
-				rotationSpeed: 0,
-				color: `hsl(${rndInt(0, 360)}, 80%, 50%)`
-			}),
-			"Ball: Pétanque": (S) => ({
-				mass: 40,
-				radius: 5,
-				charge: 0,
-				magMoment: rnd(0, 0.5),
-				restitution: 0.25,
-				temperature: 25,
-				youngModulus: 50000,
-				rotationSpeed: 0,
-				color: '#71706e'
-			}),
-			"Ball: Tennis": (S) => ({
-				mass: 3,
-				radius: 4,
-				charge: rnd(0, 2),
-				magMoment: 0,
-				restitution: 0.85,
-				temperature: 20,
-				youngModulus: 2000,
-				rotationSpeed: 0,
-				color: '#ccff00'
-			}),
-			"Object: Soap Bubble": (S) => ({
-				mass: 0.1,
-				radius: 10,
-				charge: rnd(1, 3),
-				magMoment: 0,
-				restitution: 0.8,
-				temperature: 15,
-				youngModulus: 10,
-				rotationSpeed: rnd(0.1, 0.5),
-				color: 'rgba(200, 240, 255, 0.6)'
-			}),
-			"Object: Magnet": (S) => ({
-				mass: 25,
-				radius: 6,
-				charge: 0,
-				magMoment: rnd(80, 120) / Math.sqrt(S.Km),
-				restitution: 0.5,
-				temperature: 20,
-				youngModulus: 10000,
-				rotationSpeed: 0,
-				color: '#ff0000'
-			})
-		};
-
-		Object.keys(presets).forEach(key => {
-			const opt = document.createElement('option');
-			opt.value = key;
-			opt.textContent = key;
-			presetSelect.appendChild(opt);
-		});
-
-		presetSelect.addEventListener('change', () => {
-			const key = presetSelect.value;
-			if (key && presets[key]) {
-				const params = presets[key](Sim);
-				
-				document.getElementById('newMass').value = formatVal(params.mass, 2);
-				document.getElementById('newRadius').value = formatVal(params.radius, 2);
-				document.getElementById('newCharge').value = formatVal(params.charge, 2);
-				document.getElementById('newMagMoment').value = formatVal(params.magMoment, 2);
-				document.getElementById('newRestitution').value = formatVal(params.restitution, 2);
-				document.getElementById('newTemperature').value = formatVal(params.temperature, 0);
-				document.getElementById('newRotationSpeed').value = formatVal(params.rotationSpeed, 3);
-				document.getElementById('newYoungModulus').value = formatVal(params.youngModulus, 0);
-				
-				if (params.color) {
-					presetSelect.dataset.color = params.color;
-				} else {
-					delete presetSelect.dataset.color;
-				}
-			}
-		});
-
-		const inputIds = ['newMass', 'newRadius', 'newX', 'newY', 'newVX', 'newVY', 'newAX', 'newAY', 
-			'newCharge', 'newMagMoment', 'newRestitution', 'newLifetime', 
-			'newTemperature', 'newRotationSpeed', 'newYoungModulus'];
-		
-		inputIds.forEach(id => {
-			const el = document.getElementById(id);
-			if(el) {
-				el.addEventListener('input', () => {
-					presetSelect.value = "";
-					delete presetSelect.dataset.color;
-				});
-			}
-		});
-	};
-	
-	initPresets();
-	
-	const initSimPresets = () => {
-		const select = document.getElementById('simPresetSelect');
-		const loadBtn = document.getElementById('loadSimPresetBtn');
-		
-		if (!window.App.presets || window.App.presets.length === 0 || !select) return;
-		
-		select.innerHTML = '';
-		window.App.presets.forEach((preset, index) => {
-			const opt = document.createElement('option');
-			opt.value = index;
-			opt.textContent = preset.name;
-			select.appendChild(opt);
-		});
-		
-		loadBtn.addEventListener('click', () => {
-			const idx = parseInt(select.value, 10);
-			if (window.App.presets[idx]) {
-				Sim.reset();
-				window.App.presets[idx].init(Sim);
-				
-				const updateCheck = (id, val) => {
-					const el = document.getElementById(id);
-					if(el) el.checked = val;
-				};
-				updateCheck('gravBox', Sim.enableGravity);
-				updateCheck('elecBox', Sim.enableElectricity);
-				updateCheck('magBox', Sim.enableMagnetism);
-				updateCheck('colBox', Sim.enableCollision);
-
-				refreshBodyList();
-				refreshZoneList();
-				refreshViscosityZoneList();
-				refreshElasticBondList();
-				refreshSolidBarrierList();
-				Render.draw();
-			}
-		});
-	};
-	initSimPresets();
-	
-	const bondPresets = {
-		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
-		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
-	};
-	
-	const bondToolBtn = document.getElementById('toggleBondToolBtn');
-	if (bondToolBtn) {
-		const presetContainer = document.createElement('div');
-		presetContainer.style.marginBottom = '8px';
-		presetContainer.innerHTML = `
-			<div class="control-row" style="margin-bottom:4px;"><label>Bond Preset</label></div>
-			<select id="bondPresetSelect" style="width:100%; padding:6px; background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:3px; outline:none; font-family:var(--font-ui); font-size:11px;">
-				<option value="spring">Spring (Default)</option>
-				<option value="rope">Rope (Tension only)</option>
-				<option value="rod">Rigid Rod</option>
-				<option value="chain">Chain (Non-linear)</option>
-				<option value="muscle">Muscle (Active)</option>
-				<option value="weak">Weak Link (Breakable)</option>
-			</select>
-		`;
-		
-		bondToolBtn.parentNode.insertBefore(presetContainer, bondToolBtn.nextSibling.nextSibling); // Insert after divider-sub if present
-	}
-	
-	window.App.ui.getBondConfig = function() {
-		const select = document.getElementById('bondPresetSelect');
-		if (select && bondPresets[select.value]) {
-			return bondPresets[select.value];
-		}
-		return {};
-	};
-	
-	const injectCurrentBody = () => {
-		const m = parseFloat(document.getElementById('newMass').value);
-		const x = parseFloat(document.getElementById('newX').value);
-		const y = parseFloat(document.getElementById('newY').value);
-		const vx = parseFloat(document.getElementById('newVX').value);
-		const vy = parseFloat(document.getElementById('newVY').value);
-		const radius = parseFloat(document.getElementById('newRadius').value);
-		const ax = parseFloat(document.getElementById('newAX').value) || 0;
-		const ay = parseFloat(document.getElementById('newAY').value) || 0;
-		
-		const charge = parseFloat(document.getElementById('newCharge').value) || 0;
-		const magMoment = parseFloat(document.getElementById('newMagMoment').value) || 0;
-		const restitution = parseFloat(document.getElementById('newRestitution').value) || 1.0;
-		const lifetime = parseFloat(document.getElementById('newLifetime').value) || -1;
-		const temperature = parseFloat(document.getElementById('newTemperature').value) || 0;
-		const rotationSpeed = parseFloat(document.getElementById('newRotationSpeed').value) || 0;
-		const youngModulus = parseFloat(document.getElementById('newYoungModulus').value) || 0;
-		
-		const presetColor = document.getElementById('presetSelect').dataset.color || null;
-
-		Sim.addBody(m, x, y, vx, vy, radius, presetColor, null, ax, ay, 
-					charge, magMoment, restitution, 
-					lifetime, temperature, rotationSpeed, youngModulus);
-	};
-	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
-	
-	toggleZoneDrawBtn.addEventListener('click', () => {
-		if (Render.drawMode === 'periodic') {
-			Render.drawMode = 'none';
-			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-			toggleZoneDrawBtn.classList.remove('primary');
-			toggleZoneDrawBtn.classList.add('secondary');
-			Render.canvas.style.cursor = 'default';
-		} else {
-			Render.drawMode = 'periodic';
-			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (On)';
-			toggleZoneDrawBtn.classList.remove('secondary');
-			toggleZoneDrawBtn.classList.add('primary');
-			Render.canvas.style.cursor = 'crosshair';
-		}
-	});
 
 	function refreshZoneList() {
 		zonesListContainer.innerHTML = '';
@@ -1888,98 +1925,106 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
+	Sim.addBody = function(...args) {
+		originalAddBody(...args);
+		refreshBodyList();
+	};
+	
+	Sim.removeBody = function(index) {
+		originalRemoveBody(index);
+		refreshBodyList();
+		refreshElasticBondList();
+	};
+
+	Sim.reset = function() {
+		originalReset();
+		refreshBodyList();
+		refreshZoneList();
+		refreshViscosityZoneList();
+		refreshElasticBondList();
+		refreshSolidBarrierList();
+		refreshFieldZoneList();
+		refreshFieldList();
+	};
+	
+	window.App.ui = {
+		syncInputs: function() {
+			const cards = bodiesContainer.children;
+			for (let i = 0; i < cards.length; i++) {
+				const index = parseInt(cards[i].dataset.index);
+				const body = Sim.bodies[index];
+				if (!body) continue;
+
+				const inpX = cards[i].querySelector('.inp-x');
+				const inpY = cards[i].querySelector('.inp-y');
+				const inpVX = cards[i].querySelector('.inp-vx');
+				const inpVY = cards[i].querySelector('.inp-vy');
+				const inpAX = cards[i].querySelector('.inp-start-ax'); 
+				const inpAY = cards[i].querySelector('.inp-start-ay'); 
+				const inpRadius = cards[i].querySelector('.inp-radius');
+
+				const inpCharge = cards[i].querySelector('.inp-charge');
+				const inpMagMoment = cards[i].querySelector('.inp-magMoment');
+				const inpRestitution = cards[i].querySelector('.inp-restitution');
+				const inpLifetime = cards[i].querySelector('.inp-lifetime');
+				const inpTemp = cards[i].querySelector('.inp-temp');
+				const inpRotSpeed = cards[i].querySelector('.inp-rotSpeed');
+				const inpYoungMod = cards[i].querySelector('.inp-youngMod');
+				const inpFriction = cards[i].querySelector('.inp-friction');
+
+				if (document.activeElement !== inpX) inpX.value = formatVal(body.x, 2);
+				if (document.activeElement !== inpY) inpY.value = formatVal(body.y, 2);
+				if (document.activeElement !== inpVX) inpVX.value = formatVal(body.vx, 3);
+				if (document.activeElement !== inpVY) inpVY.value = formatVal(body.vy, 3);
+				if (document.activeElement !== inpAX) inpAX.value = formatVal(body.startAx, 3);
+				if (document.activeElement !== inpAY) inpAY.value = formatVal(body.startAy, 3);
+				if (document.activeElement !== inpRadius) inpRadius.value = formatVal(body.radius, 2);
+
+				if (document.activeElement !== inpCharge) inpCharge.value = formatVal(body.charge, 2);
+				if (document.activeElement !== inpMagMoment) inpMagMoment.value = formatVal(body.magMoment, 2);
+				if (document.activeElement !== inpRestitution) inpRestitution.value = formatVal(body.restitution, 2);
+				if (document.activeElement !== inpLifetime) inpLifetime.value = body.lifetime;
+				if (document.activeElement !== inpTemp) inpTemp.value = formatVal(body.temperature, 0);
+				if (document.activeElement !== inpRotSpeed) inpRotSpeed.value = formatVal(body.rotationSpeed, 3);
+				if (document.activeElement !== inpYoungMod) inpYoungMod.value = formatVal(body.youngModulus, 0);
+				if (document.activeElement !== inpFriction) inpFriction.value = formatVal(body.friction, 2);
+			}
+		},
+		
+		highlightBody: function(index) {
+			const cards = document.querySelectorAll('.body-card');
+			cards.forEach(c => c.classList.remove('selected'));
+			
+			const card = document.querySelector(`.body-card[data-index="${index}"]`);
+			if (card) {
+				card.classList.add('selected');
+				card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				
+				const container = document.getElementById('bodiesListContainer');
+				if (container.classList.contains('hidden-content')) {
+					document.getElementById('toggleBodiesBtn').click();
+				}
+			}
+		},
+	};
+	
+	window.App.ui.refreshFieldZones = refreshFieldZoneList;
+	
+	window.App.ui.refreshSolidBarrierList = refreshSolidBarrierList;
+	
+	window.App.ui.refreshElasticBondList = refreshElasticBondList;
+	
+	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
+	
 	window.App.ui.refreshZones = refreshZoneList;
 	
-	const playBtn = document.getElementById('playPauseBtn');
-	playBtn.addEventListener('click', () => {
-		Sim.paused = !Sim.paused;
-		if(Sim.paused) {
-			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
-			playBtn.classList.remove('primary');
-			playBtn.style.color = "#aaa";
-		} else {
-			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
-			playBtn.classList.add('primary');
-			playBtn.style.color = "";
+	window.App.ui.getBondConfig = function() {
+		const select = document.getElementById('bondPresetSelect');
+		if (select && bondPresets[select.value]) {
+			return bondPresets[select.value];
 		}
-	});
-
-	document.getElementById('resetBtn').addEventListener('click', () => {
-		Sim.reset();
-		Sim.paused = true;
-		
-		playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
-		playBtn.classList.remove('primary');
-		playBtn.style.color = "#aaa";
-		
-		generateRandomParameters(true);
-		injectCurrentBody();
-		generateRandomParameters(false);
-		
-		refreshBodyList();
-		refreshFieldList();
-		Render.draw(); 
-	});
-
-	const bindRange = (idInput, idDisplay, obj, prop, isFloat = false, prec = 1) => {
-		const el = document.getElementById(idInput);
-		const disp = document.getElementById(idDisplay);
-		if (!el) return;
-
-		el.value = obj[prop];
-		if (disp) disp.textContent = isFloat ? obj[prop].toFixed(prec) : obj[prop];
-
-		el.addEventListener('input', () => {
-			const val = parseFloat(el.value);
-			obj[prop] = val;
-			if (disp) disp.textContent = isFloat ? val.toFixed(prec) : val;
-		});
+		return {};
 	};
-
-	const bindToggle = (idInput, obj, prop, callback) => {
-		const el = document.getElementById(idInput);
-		if (!el) return;
-
-		el.checked = obj[prop];
-
-		el.addEventListener('change', (e) => {
-			obj[prop] = e.target.checked;
-			if (callback) callback(e.target.checked);
-		});
-	};
-	
-	document.getElementById('addBodyBtn').addEventListener('click', () => {
-		injectCurrentBody();
-		const presetSelect = document.getElementById('presetSelect');
-		if (presetSelect && presetSelect.value) {
-			generateRandomParameters(false, true);
-		} else {
-			generateRandomParameters(false, false);
-		}
-	});
-
-	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
-	const fieldDefContent = document.getElementById('fieldDefContent');
-	const fieldsListContainer = document.getElementById('fieldsListContainer');
-	
-	const toggleFieldDefinition = () => {
-		fieldDefContent.classList.toggle('hidden-content');
-		toggleFieldDefBtn.innerHTML = fieldDefContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
-	};
-
-	if (toggleFieldDefBtn) {
-		toggleFieldDefBtn.addEventListener('click', toggleFieldDefinition);
-	}
-	
-	if (fieldDefContent.classList.contains('hidden-content')) {
-		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-	} else {
-		toggleFieldDefBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
-	}
-	
-	document.addEventListener('dblclick', (e) => {
-		e.preventDefault();
-	}, { passive: false });
 	
 	bindRange('dtSlider', 'dtVal', Sim, 'dt', true, 2);
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
@@ -2010,6 +2055,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
 	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
+
+	initBodySorting();
+	initPresets();
+	initSimPresets();
 	
 	Render.init();
 	refreshFieldList(); 

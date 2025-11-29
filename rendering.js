@@ -153,8 +153,18 @@ const Rendering = {
 			if (clickedIdx !== -1) {
 				if (this.selectedBodyIdx !== clickedIdx) {
 					this.selectedBodyIdx = clickedIdx;
-					if (window.App.ui && window.App.ui.highlightBody) {
-						window.App.ui.highlightBody(clickedIdx);
+					this.selectedZoneId = null;
+					this.selectedViscosityZoneId = null;
+					this.selectedFieldZoneId = null;
+					this.selectedBondId = null;
+					this.selectedBarrierId = null;
+					if (window.App.ui) {
+						if (window.App.ui.highlightBody) window.App.ui.highlightBody(clickedIdx);
+						if (window.App.ui.refreshZones) window.App.ui.refreshZones();
+						if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
+						if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
+						if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
+						if (window.App.ui.refreshSolidBarrierList) window.App.ui.refreshSolidBarrierList();
 					}
 				}
 				
@@ -189,7 +199,6 @@ const Rendering = {
 				this.isDragging = true;
 			}
 		};
-
 		const handleMove = (clientX, clientY) => {
 			if (!this.isDragging) return;
 			const m = getMouseWorldPos(clientX, clientY);
@@ -592,104 +601,40 @@ const Rendering = {
 		const screenStep = Math.max(0, this.fieldPrecision * 2);
 		const worldStep = screenStep / this.zoom;
 
-		// Limites de la vue en coordonnées monde
 		const worldLeft = -(this.width / 2 + this.camX) / this.zoom;
 		const worldTop = -(this.height / 2 + this.camY) / this.zoom;
 		const worldRight = worldLeft + (this.width / this.zoom);
 		const worldBottom = worldTop + (this.height / this.zoom);
 
-		// Caler le début de la grille pour éviter l'effet de glissement (swimming)
 		const startX = Math.floor(worldLeft / worldStep) * worldStep;
 		const startY = Math.floor(worldTop / worldStep) * worldStep;
 
-		// Paramètres de dessin
-		const scaleFactor = this.fieldScale; // Facteur d'intensité utilisateur
-		const maxLen = worldStep * 0.85; // Longueur max pour ne pas chevaucher
+		const scaleFactor = this.fieldScale;
+		const maxLen = worldStep * 0.85;
 		this.ctx.lineWidth = 1.5 / this.zoom;
 
 		for (let x = startX; x < worldRight + worldStep; x += worldStep) {
 			for (let y = startY; y < worldBottom + worldStep; y += worldStep) {
+				const field = this.calculateField(x, y, bodies);
 				
-				// 1. Champ Gravitationnel
-				if (this.showGravField && Sim.enableGravity) {
-					let gx = 0, gy = 0;
-					for (const b of bodies) {
-						const dx = b.x - x;
-						const dy = b.y - y;
-						const distSq = dx*dx + dy*dy;
-						if (distSq > 0.001) {
-							const f = (Sim.G * b.mass) / distSq;
-							const dist = Math.sqrt(distSq);
-							gx += (dx / dist) * f;
-							gy += (dy / dist) * f;
-						}
-					}
-					this.drawFieldVector(x, y, gx, gy, scaleFactor, maxLen, '#2ecc71');
+				if (this.showGravField) {
+					this.drawFieldVector(x, y, field.g_fx, field.g_fy, scaleFactor, maxLen, '#2ecc71');
 				}
-
-				// 2. Champ Électrique
-				if (this.showElecField && Sim.enableElectricity) {
-					let ex = 0, ey = 0;
-					for (const b of bodies) {
-						if (b.charge === 0) continue;
-						const dx = b.x - x;
-						const dy = b.y - y;
-						const distSq = dx*dx + dy*dy;
-						if (distSq > 0.001) {
-							const f = (Sim.Ke * b.charge) / distSq;
-							const dist = Math.sqrt(distSq);
-							ex += (dx / dist) * f;
-							ey += (dy / dist) * f;
-						}
-					}
-					this.drawFieldVector(x, y, ex, ey, scaleFactor, maxLen, '#3498db');
+				if (this.showElecField) {
+					this.drawFieldVector(x, y, field.e_fx, field.e_fy, scaleFactor, maxLen, '#3498db');
 				}
-
-				// 3. Champ Magnétique
-				if (this.showMagField && Sim.enableMagnetism) {
-					let mx = 0, my = 0;
-					for (const b of bodies) {
-						if (b.magMoment === 0) continue;
-						const dx = b.x - x;
-						const dy = b.y - y;
-						const distSq = dx*dx + dy*dy;
-						if (distSq > 0.001) {
-							const dist = Math.sqrt(distSq);
-							const f = (Sim.Km * b.magMoment) / (distSq * dist);
-							mx += (dx / dist) * f;
-							my += (dy / dist) * f;
-						}
-					}
-					this.drawFieldVector(x, y, mx, my, scaleFactor, maxLen, '#e74c3c');
+				if (this.showMagField) {
+					this.drawFieldVector(x, y, field.m_fx, field.m_fy, scaleFactor, maxLen, '#e74c3c');
 				}
-
-				// 4. Champs de Formule (Individuels)
 				if (this.showFormulaField) {
-					const t = Sim.tickCount * Sim.dt;
-					const G = Sim.G, c = Sim.c, Ke = Sim.Ke, Km = Sim.Km;
-					const PI = Math.PI, E = Math.E;
-
-					for (const field of Sim.formulaFields) {
-						if (!field.enabled || field.errorX || field.errorY) continue;
-						
-						// On recalcule pour chaque champ pour avoir la bonne couleur
-						const vars = { x, y, G, c, Ke, Km, t, PI, E };
-						let fx = 0, fy = 0;
-						
-						try {
-							if (field.funcEx) fx = field.funcEx(vars);
-							if (field.funcEy) fy = field.funcEy(vars);
-						} catch (e) { continue; }
-						
-						if ((fx !== 0 || fy !== 0) && !isNaN(fx) && !isNaN(fy)) {
-							this.drawFieldVector(x, y, fx, fy, scaleFactor, maxLen, field.color || '#f1c40f');
-						}
-					}
+					const totalFormulaX = field.f_fx;
+					const totalFormulaY = field.f_fy;
+					this.drawFieldVector(x, y, totalFormulaX, totalFormulaY, scaleFactor, maxLen, '#f1c40f');
 				}
 			}
 		}
 	},
-
+	
 	drawFieldVector: function(x, y, fx, fy, scale, maxLen, color) {
 		const magSq = fx*fx + fy*fy;
 		if (magSq < 1e-10) return; // Trop petit pour être dessiné
