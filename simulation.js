@@ -546,66 +546,6 @@ const Simulation = {
 		}
 	},
 	
-	applyImpulseResponse: function(b1, b2, nx, ny) {
-		const r1x = b1.radius * nx;
-		const r1y = b1.radius * ny;
-		const r2x = -b2.radius * nx;
-		const r2y = -b2.radius * ny;
-
-		const v1x = b1.vx - b1.rotationSpeed * r1y;
-		const v1y = b1.vy + b1.rotationSpeed * r1x;
-		const v2x = b2.vx - b2.rotationSpeed * r2y;
-		const v2y = b2.vy + b2.rotationSpeed * r2x;
-
-		const rvx = v2x - v1x;
-		const rvy = v2y - v1y;
-		const vn = rvx * nx + rvy * ny;
-
-		if (vn < 0) {
-			const e = Math.min(b1.restitution, b2.restitution);
-			const invM1 = b1.invMass;
-			const invM2 = b2.invMass;
-			const i1 = (b1.invMass === 0) ? 0 : (2 * b1.invMass) / (b1.radius * b1.radius);
-			const i2 = (b2.invMass === 0) ? 0 : (2 * b2.invMass) / (b2.radius * b2.radius);
-
-			const jnVal = -(1 + e) * vn / (invM1 + invM2);
-			const jnx = jnVal * nx;
-			const jny = jnVal * ny;
-
-			const tx = -ny;
-			const ty = nx;
-			const vt = rvx * tx + rvy * ty;
-			
-			const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
-			let jtVal = -vt / massTan;
-
-			const avgFriction = (b1.friction + b2.friction) / 2;
-			const maxFric = avgFriction * Math.abs(jnVal);
-			
-			if (jtVal > maxFric) jtVal = maxFric;
-			else if (jtVal < -maxFric) jtVal = -maxFric;
-
-			const jtx = jtVal * tx;
-			const jty = jtVal * ty;
-
-			const Jx = jnx + jtx;
-			const Jy = jny + jty;
-
-			if (b1.mass !== -1) {
-				b1.vx += Jx * invM1;
-				b1.vy += Jy * invM1;
-				const torque = (r1x * jty - r1y * jtx);
-				b1.rotationSpeed += torque * i1;
-			}
-			if (b2.mass !== -1) {
-				b2.vx -= Jx * invM2;
-				b2.vy -= Jy * invM2;
-				const torque = (r2x * -jty - r2y * -jtx);
-				b2.rotationSpeed += torque * i2;
-			}
-		}
-	},
-	
 	resolveBarriers: function(b, prevX, prevY) {
 		if (!this.enableCollision) return;
 
@@ -674,17 +614,45 @@ const Simulation = {
 			}
 			
 			if (collisionDetected) {
-				const dummyBarrierBody = {
-					x: b.x - nx * (b.radius + overlap),
-					y: b.y - ny * (b.radius + overlap),
-					vx: 0, vy: 0,
-					mass: -1, 
-					radius: 0,
-					rotationSpeed: 0,
-					restitution: barrier.restitution,
-					friction: barrier.friction
-				};
-				this.applyImpulseResponse(b, dummyBarrierBody, nx, ny);
+				const rcpX = -nx * b.radius;
+				const rcpY = -ny * b.radius;
+				
+				const vpX = b.vx - b.rotationSpeed * rcpY;
+				const vpY = b.vy + b.rotationSpeed * rcpX;
+				
+				const vn = vpX * nx + vpY * ny;
+				
+				if (vn < 0) {
+					const e = Math.min(b.e_current, barrier.restitution);
+					
+					const jnVal = -(1 + e) * vn / b.invMass;
+					const jnx = jnVal * nx;
+					const jny = jnVal * ny;
+					
+					const tx = -ny;
+					const ty = nx;
+					const vt = vpX * tx + vpY * ty;
+					
+					const i1 = (b.invMass === 0) ? 0 : (2 * b.invMass) / (b.radius * b.radius);
+					
+					const massTan = b.invMass + (b.radius * b.radius * i1);
+					let jtVal = -vt / massTan;
+					
+					const avgFriction = (b.friction + barrier.friction) * 0.5;
+					const maxFric = avgFriction * Math.abs(jnVal);
+					
+					if (jtVal > maxFric) jtVal = maxFric;
+					else if (jtVal < -maxFric) jtVal = -maxFric;
+					
+					const jtx = jtVal * tx;
+					const jty = jtVal * ty;
+					
+					b.vx += (jnx + jtx) * b.invMass;
+					b.vy += (jny + jty) * b.invMass;
+					
+					const torque = (rcpX * jty - rcpY * jtx);
+					b.rotationSpeed += torque * i1;
+				}
 			}
 		}
 	},
