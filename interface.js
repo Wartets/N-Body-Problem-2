@@ -1390,19 +1390,40 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function refreshBodyList() {
-		bodiesContainer.innerHTML = '';
-		bodyCountLabel.textContent = Sim.bodies.length;
-		
-		Sim.bodies.forEach((body, index) => {
-			const card = createBodyCard(body, index);
-			card.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
-					Render.selectedBodyIdx = index;
-					window.App.ui.highlightBody(index);
-				}
+		const bodies = Sim.bodies;
+		const total = bodies.length;
+		bodyCountLabel.textContent = total;
+
+		let spacer = bodiesContainer.querySelector('.virtual-spacer');
+		if (!spacer) {
+			bodiesContainer.innerHTML = '';
+			spacer = document.createElement('div');
+			spacer.className = 'virtual-spacer';
+			Object.assign(spacer.style, {
+				position: 'relative',
+				width: '100%',
+				overflow: 'hidden',
+				height: '0px'
 			});
-			bodiesContainer.appendChild(card);
-		});
+			bodiesContainer.appendChild(spacer);
+			
+			bodiesContainer.state = {
+				itemHeight: 280, 
+				ticking: false
+			};
+
+			bodiesContainer.addEventListener('scroll', () => {
+				if (!bodiesContainer.state.ticking) {
+					window.requestAnimationFrame(() => {
+						renderVirtualVisible();
+						bodiesContainer.state.ticking = false;
+					});
+					bodiesContainer.state.ticking = true;
+				}
+			}, { passive: true });
+		}
+		
+		renderVirtualVisible(true);
 		
 		if (Render.selectedBodyIdx !== -1) {
 			window.App.ui.highlightBody(Render.selectedBodyIdx);
@@ -1412,61 +1433,31 @@ document.addEventListener('DOMContentLoaded', () => {
 	function refreshBodyListAsync(onComplete) {
 		const bodies = Sim.bodies;
 		const totalBodies = bodies.length;
-		let processedBodies = 0;
-		const chunkSize = 100;
 
-		bodiesContainer.innerHTML = '';
 		bodyCountLabel.textContent = totalBodies;
 		
 		const progressBarContainer = document.getElementById('loading-progress-bar-container');
 		const progressBar = document.getElementById('loading-progress-bar');
 		
-		if (totalBodies === 0) {
-			if (onComplete) onComplete();
-			return;
+		if (progressBarContainer) {
+			progressBarContainer.style.display = 'block';
+			progressBar.style.width = '0%';
 		}
-
-		progressBarContainer.style.display = 'block';
-		progressBar.style.width = '0%';
 		
-		function processChunk() {
-			const fragment = document.createDocumentFragment();
-			const end = Math.min(processedBodies + chunkSize, totalBodies);
+		setTimeout(() => {
+			if (progressBar) progressBar.style.width = '50%';
 			
-			for (let i = processedBodies; i < end; i++) {
-				const body = bodies[i];
-				const card = createBodyCard(body, i);
-				card.addEventListener('click', (e) => {
-					if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
-						Render.selectedBodyIdx = i;
-						window.App.ui.highlightBody(i);
-					}
-				});
-				fragment.appendChild(card);
-			}
-			bodiesContainer.appendChild(fragment);
+			refreshBodyList();
 			
-			processedBodies = end;
+			if (progressBar) progressBar.style.width = '100%';
 
-			const progress = (processedBodies / totalBodies) * 100;
-			progressBar.style.width = `${progress}%`;
-
-			if (processedBodies < totalBodies) {
-				setTimeout(processChunk, 0);
-			} else {
-				if (Render.selectedBodyIdx !== -1) {
-					window.App.ui.highlightBody(Render.selectedBodyIdx);
-				}
-				
-				setTimeout(() => {
+			setTimeout(() => {
+				if (progressBarContainer) {
 					progressBarContainer.style.display = 'none';
-				}, 5);
-
+				}
 				if (onComplete) onComplete();
-			}
-		}
-		
-		processChunk();
+			}, 100);
+		}, 10);
 	}
 	
 	function createFieldCard(field, index) {
@@ -1648,6 +1639,79 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 
 		return div;
+	}
+	
+	function renderVirtualVisible(force = false) {
+		const bodies = Sim.bodies;
+		const total = bodies.length;
+		const spacer = bodiesContainer.querySelector('.virtual-spacer');
+		if (!spacer || !bodiesContainer.state) return;
+
+		const state = bodiesContainer.state;
+		const viewportHeight = bodiesContainer.clientHeight || 600;
+		const scrollTop = bodiesContainer.scrollTop;
+		
+		spacer.style.height = (total * state.itemHeight) + 'px';
+		
+		const startIndex = Math.floor(scrollTop / state.itemHeight);
+		const visibleCount = Math.ceil(viewportHeight / state.itemHeight);
+		const buffer = 3;
+		
+		const start = Math.max(0, startIndex - buffer);
+		const end = Math.min(total, startIndex + visibleCount + buffer);
+		
+		const rendered = new Map();
+		Array.from(spacer.children).forEach(child => {
+			const idx = parseInt(child.dataset.index);
+			if (force || idx < start || idx >= end) {
+				child.remove();
+			} else {
+				rendered.set(idx, child);
+			}
+		});
+
+		const fragment = document.createDocumentFragment();
+		let measureItem = null;
+
+		for (let i = start; i < end; i++) {
+			if (!rendered.has(i)) {
+				const body = bodies[i];
+				if (body) {
+					const card = createBodyCard(body, i);
+					Object.assign(card.style, {
+						position: 'absolute',
+						top: (i * state.itemHeight) + 'px',
+						left: '0',
+						right: '0',
+						boxSizing: 'border-box'
+					});
+					
+					card.addEventListener('click', (e) => {
+						if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
+							Render.selectedBodyIdx = i;
+							window.App.ui.highlightBody(i);
+						}
+					});
+					
+					fragment.appendChild(card);
+					if (!measureItem) measureItem = card;
+				}
+			}
+		}
+		
+		spacer.appendChild(fragment);
+
+		if (measureItem && state.itemHeight === 280) { 
+			requestAnimationFrame(() => {
+				if(measureItem.isConnected) {
+					const rect = measureItem.getBoundingClientRect();
+					if (rect.height > 50 && Math.abs(rect.height - state.itemHeight) > 5) {
+						state.itemHeight = rect.height + 4;
+						renderVirtualVisible(true);
+					}
+				}
+			});
+		}
 	}
 	
 	function refreshViscosityZoneList() {
@@ -2115,9 +2179,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	window.App.ui = {
 		syncInputs: function(syncAll = false) {
-			if (bodiesContainer.classList.contains('hidden-content')) {
-				return;
-			}
+			if (bodiesContainer.classList.contains('hidden-content')) return;
+
+			const spacer = bodiesContainer.querySelector('.virtual-spacer');
+			if (!spacer) return;
 
 			const syncCard = (card) => {
 				if (!card) return;
@@ -2137,30 +2202,39 @@ document.addEventListener('DOMContentLoaded', () => {
 			};
 
 			if (syncAll) {
-				const cards = bodiesContainer.children;
+				const cards = spacer.children;
 				for (let i = 0; i < cards.length; i++) {
 					syncCard(cards[i]);
 				}
 			} else if (Render.selectedBodyIdx !== -1) {
-				const card = document.querySelector(`.body-card[data-index="${Render.selectedBodyIdx}"]`);
-				syncCard(card);
+				const card = spacer.querySelector(`.body-card[data-index="${Render.selectedBodyIdx}"]`);
+				if (card) syncCard(card);
 			}
 		},
 		
 		highlightBody: function(index) {
-			const cards = document.querySelectorAll('.body-card');
+			const spacer = bodiesContainer.querySelector('.virtual-spacer');
+			if (!spacer) return;
+			
+			const cards = spacer.querySelectorAll('.body-card');
 			cards.forEach(c => c.classList.remove('selected'));
 			
-			const card = document.querySelector(`.body-card[data-index="${index}"]`);
+			const card = spacer.querySelector(`.body-card[data-index="${index}"]`);
 			if (card) {
 				card.classList.add('selected');
+			}
+			
+			if (bodiesContainer.state) {
+				const itemTop = index * bodiesContainer.state.itemHeight;
+				const itemBottom = itemTop + bodiesContainer.state.itemHeight;
+				const scrollTop = bodiesContainer.scrollTop;
+				const height = bodiesContainer.clientHeight;
 				
-				const container = document.getElementById('bodiesListContainer');
-				if (!container.classList.contains('hidden-content')) {
-					card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				if (itemTop < scrollTop || itemBottom > scrollTop + height) {
+					bodiesContainer.scrollTop = itemTop - height / 2 + bodiesContainer.state.itemHeight / 2;
 				}
 			}
-		},
+		}
 	};
 	
 	window.App.ui.refreshFieldZones = refreshFieldZoneList;
