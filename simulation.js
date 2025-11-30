@@ -5,31 +5,33 @@ window.App = {
 };
 
 class Body {
-	constructor(mass, x, y, vx, vy, radius, color, name, startAx = 0, startAy = 0, 
-				charge = 0, magMoment = 0, restitution = 1.0, 
-				lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0, friction = 0.5) {
-		this.mass = mass;
-		this.x = x;
-		this.y = y;
-		this.vx = vx;
-		this.vy = vy;
+	constructor(config = {}) {
+		this.mass = config.mass ?? 1;
+		this.x = config.x ?? 0;
+		this.y = config.y ?? 0;
+		this.vx = config.vx ?? 0;
+		this.vy = config.vy ?? 0;
+		this.startAx = config.ax ?? 0;
+		this.startAy = config.ay ?? 0;
 		this.ax = 0;
 		this.ay = 0;
-		this.startAx = startAx;
-		this.startAy = startAy;
-		this.radius = radius > 0 ? radius : (mass > 1 ? Math.max(2, Math.log(mass) * 2) : 2);
-		this.color = color || `hsl(${Math.random() * 360}, 70%, 60%)`;
-		this.path = [];
-		this.name = name || "Body";
 		
-		this.charge = charge;
-		this.magMoment = magMoment;
-		this.restitution = restitution;
-		this.lifetime = lifetime;
-		this.temperature = temperature;
-		this.rotationSpeed = rotationSpeed;
-		this.youngModulus = youngModulus;
-		this.friction = friction;
+		this.radius = (config.radius && config.radius > 0) 
+			? config.radius 
+			: (this.mass > 1 ? Math.max(2, Math.log(this.mass) * 2) : 2);
+			
+		this.color = config.color || `hsl(${Math.random() * 360}, 70%, 60%)`;
+		this.name = config.name || "Body";
+		this.path = [];
+		
+		this.charge = config.charge ?? 0;
+		this.magMoment = config.magMoment ?? 0;
+		this.restitution = config.restitution ?? 1.0;
+		this.lifetime = config.lifetime ?? -1;
+		this.temperature = config.temperature ?? 0;
+		this.rotationSpeed = config.rotationSpeed ?? 0;
+		this.youngModulus = config.youngModulus ?? 0;
+		this.friction = config.friction ?? 0.5;
 		this.angle = 0;
 	}
 };
@@ -74,13 +76,10 @@ const Simulation = {
 		this.formulaFields = [];
 	},
 	
-	addBody: function(m, x, y, vx, vy, radius, col, name, ax = 0, ay = 0, charge = 0, magMoment = 0, restitution = 1.0, lifetime = -1, temperature = 0, rotationSpeed = 0, youngModulus = 0, friction = 0.5) {
-		const newName = name || `Body ${this.bodies.length + 1}`;
-		const newBody = new Body(m, x, y, vx, vy, radius, col, newName, ax, ay,
-								  charge, magMoment, restitution, 
-								  lifetime, temperature, rotationSpeed, youngModulus, friction);
-		newBody.startAx = ax;
-		newBody.startAy = ay;
+	addBody: function(config) {
+		const defaults = { name: `Body ${this.bodies.length + 1}` };
+		const finalConfig = { ...defaults, ...config };
+		const newBody = new Body(finalConfig);
 		this.bodies.push(newBody);
 	},
 	
@@ -314,55 +313,38 @@ const Simulation = {
 		}
 	},
 	
-	update: function(force = false) {
-		if (this.paused && !force) return;
-
-		const bodies = this.bodies;
-		let count = bodies.length;
-		const c2 = this.c * this.c;
-		const dt = this.dt;
-
-		this.tickCount++;
-
-		for (let i = 0; i < count; i++) {
-			if (bodies[i].mass === -1) {
-				bodies[i].ax = 0;
-				bodies[i].ay = 0;
-				bodies[i].vx = 0;
-				bodies[i].vy = 0;
-				continue;
-			}
-
-			bodies[i].ax = bodies[i].startAx;
-			bodies[i].ay = bodies[i].startAy;
-			
-			if (bodies[i].charge !== 0) {
-				const field = this.calculateFormulaField(bodies[i].x, bodies[i].y);
-				bodies[i].ax += (bodies[i].charge * field.Ex) / bodies[i].mass;
-				bodies[i].ay += (bodies[i].charge * field.Ey) / bodies[i].mass;
-			}
-			
-			for (const z of this.viscosityZones) {
-				if (!z.enabled) continue;
-				if (bodies[i].x >= z.x && bodies[i].x <= z.x + z.width &&
-					bodies[i].y >= z.y && bodies[i].y <= z.y + z.height) {
-					const fx = -bodies[i].vx * z.viscosity;
-					const fy = -bodies[i].vy * z.viscosity;
-					bodies[i].ax += fx / bodies[i].mass;
-					bodies[i].ay += fy / bodies[i].mass;
-				}
-			}
-
-			for (const z of this.fieldZones) {
-				if (!z.enabled) continue;
-				if (bodies[i].x >= z.x && bodies[i].x <= z.x + z.width &&
-					bodies[i].y >= z.y && bodies[i].y <= z.y + z.height) {
-					bodies[i].ax += z.fx;
-					bodies[i].ay += z.fy;
-				}
+	computeExternalForces: function(body) {
+		body.ax = body.startAx;
+		body.ay = body.startAy;
+		
+		if (body.charge !== 0) {
+			const field = this.calculateFormulaField(body.x, body.y);
+			body.ax += (body.charge * field.Ex) / body.mass;
+			body.ay += (body.charge * field.Ey) / body.mass;
+		}
+		
+		for (const z of this.viscosityZones) {
+			if (!z.enabled) continue;
+			if (body.x >= z.x && body.x <= z.x + z.width &&
+				body.y >= z.y && body.y <= z.y + z.height) {
+				const fx = -body.vx * z.viscosity;
+				const fy = -body.vy * z.viscosity;
+				body.ax += fx / body.mass;
+				body.ay += fy / body.mass;
 			}
 		}
 
+		for (const z of this.fieldZones) {
+			if (!z.enabled) continue;
+			if (body.x >= z.x && body.x <= z.x + z.width &&
+				body.y >= z.y && body.y <= z.y + z.height) {
+				body.ax += z.fx;
+				body.ay += z.fy;
+			}
+		}
+	},
+	
+	computeBonds: function(bodies, dt) {
 		for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
 			const bond = this.elasticBonds[i];
 			if (!bond.enabled) continue;
@@ -411,7 +393,9 @@ const Simulation = {
 			}
 			
 			if (bond.breakTension > 0 && forceMag > bond.breakTension) {
-				this.elasticBonds.splice(i, 1);
+				if (bodies === this.bodies) {
+					this.elasticBonds.splice(i, 1);
+				}
 				continue;
 			}
 
@@ -445,7 +429,345 @@ const Simulation = {
 				b2.ay -= fy * invM2;
 			}
 		}
+	},
+	
+	calculatePairForces: function(b1, b2, distSq, dist) {
+		let f_total = 0;
 
+		if (this.enableGravity) {
+			const m1 = b1.mass === -1 ? 1 : b1.mass; 
+			const m2 = b2.mass === -1 ? 1 : b2.mass; 
+			f_total += (this.G * m1 * m2) / distSq;
+		}
+
+		if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
+			const f_elec = -(this.Ke * b1.charge * b2.charge) / distSq;
+			f_total += f_elec; 
+		}
+
+		if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
+			const f_mag = -(this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+			f_total += f_mag;
+		}
+
+		return f_total;
+	},
+	
+	applyImpulseResponse: function(b1, b2, nx, ny) {
+		const r1x = b1.radius * nx;
+		const r1y = b1.radius * ny;
+		const r2x = -b2.radius * nx;
+		const r2y = -b2.radius * ny;
+
+		const v1x = b1.vx - b1.rotationSpeed * r1y;
+		const v1y = b1.vy + b1.rotationSpeed * r1x;
+		const v2x = b2.vx - b2.rotationSpeed * r2y;
+		const v2y = b2.vy + b2.rotationSpeed * r2x;
+
+		const rvx = v2x - v1x;
+		const rvy = v2y - v1y;
+		const vn = rvx * nx + rvy * ny;
+
+		if (vn < 0) {
+			const e = Math.min(b1.restitution, b2.restitution);
+			const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+			const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+			const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
+			const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
+
+			const jnVal = -(1 + e) * vn / (invM1 + invM2);
+			const jnx = jnVal * nx;
+			const jny = jnVal * ny;
+
+			const tx = -ny;
+			const ty = nx;
+			const vt = rvx * tx + rvy * ty;
+			
+			const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
+			let jtVal = -vt / massTan;
+
+			const avgFriction = (b1.friction + b2.friction) / 2;
+			const maxFric = avgFriction * Math.abs(jnVal);
+			
+			if (jtVal > maxFric) jtVal = maxFric;
+			else if (jtVal < -maxFric) jtVal = -maxFric;
+
+			const jtx = jtVal * tx;
+			const jty = jtVal * ty;
+
+			const Jx = jnx + jtx;
+			const Jy = jny + jty;
+
+			if (b1.mass !== -1) {
+				b1.vx += Jx * invM1;
+				b1.vy += Jy * invM1;
+				const torque = (r1x * jty - r1y * jtx);
+				b1.rotationSpeed += torque * i1;
+			}
+			if (b2.mass !== -1) {
+				b2.vx -= Jx * invM2;
+				b2.vy -= Jy * invM2;
+				const torque = (r2x * -jty - r2y * -jtx);
+				b2.rotationSpeed += torque * i2;
+			}
+		}
+	},
+	
+	handlePairCollision: function(b1, b2, dist, nx, ny, overlap) {
+		const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
+		let fx = 0;
+		let fy = 0;
+		
+		if (avgYoung > 0) {
+			const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
+			const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
+			const penetrationForce = avgYoung * overlap * contactWidth;
+			fx -= penetrationForce * nx;
+			fy -= penetrationForce * ny;
+		}
+
+		this.applyImpulseResponse(b1, b2, nx, ny);
+
+		const correctionPercent = 0.8;
+		const slop = 0.01;
+		const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+		const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+		const totalInvMass = invM1 + invM2;
+		
+		if (totalInvMass > 0) {
+			const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
+			const cx = correctionMag * nx;
+			const cy = correctionMag * ny;
+
+			if (b1.mass !== -1) {
+				b1.x -= cx * invM1;
+				b1.y -= cy * invM1;
+			}
+			if (b2.mass !== -1) {
+				b2.x += cx * invM2;
+				b2.y += cy * invM2;
+			}
+		}
+
+		return { fx, fy };
+	},
+	
+	resolveBarriers: function(b, prevX, prevY) {
+		if (!this.enableCollision) return;
+
+		for (const barrier of this.solidBarriers) {
+			if (!barrier.enabled) continue;
+			
+			const bx1 = barrier.x1;
+			const by1 = barrier.y1;
+			const bx2 = barrier.x2;
+			const by2 = barrier.y2;
+			
+			let collisionDetected = false;
+			let nx = 0, ny = 0, dist = 0, overlap = 0;
+			
+			const den = (bx1 - bx2) * (prevY - b.y) - (by1 - by2) * (prevX - b.x);
+			if (den !== 0) {
+				const t = ((bx1 - prevX) * (prevY - b.y) - (by1 - prevY) * (prevX - b.x)) / den;
+				const u = -((bx1 - bx2) * (by1 - prevY) - (by1 - by2) * (bx1 - prevX)) / den;
+				
+				if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+					collisionDetected = true;
+					const segX = bx2 - bx1;
+					const segY = by2 - by1;
+					const segLen = Math.sqrt(segX*segX + segY*segY);
+					nx = -segY / segLen;
+					ny = segX / segLen;
+					
+					const approach = (b.x - prevX)*nx + (b.y - prevY)*ny;
+					if (approach > 0) {
+						nx = -nx; ny = -ny;
+					}
+					
+					const ix = bx1 + t * segX;
+					const iy = by1 + t * segY;
+					b.x = ix + nx * (b.radius + 0.01);
+					b.y = iy + ny * (b.radius + 0.01);
+				}
+			}
+
+			if (!collisionDetected) {
+				const segX = bx2 - bx1;
+				const segY = by2 - by1;
+				const segLenSq = segX*segX + segY*segY;
+				
+				if (segLenSq > 0) {
+					const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
+					const tClamped = Math.max(0, Math.min(1, dot));
+					
+					const closestX = bx1 + tClamped * segX;
+					const closestY = by1 + tClamped * segY;
+					
+					const distX = b.x - closestX;
+					const distY = b.y - closestY;
+					const distSq = distX*distX + distY*distY;
+					dist = Math.sqrt(distSq);
+					
+					if (dist < b.radius) {
+						collisionDetected = true;
+						nx = distX / dist;
+						ny = distY / dist;
+						overlap = b.radius - dist;
+						b.x += nx * overlap;
+						b.y += ny * overlap;
+					}
+				}
+			}
+			
+			if (collisionDetected) {
+				const dummyBarrierBody = {
+					x: b.x - nx * (b.radius + overlap),
+					y: b.y - ny * (b.radius + overlap),
+					vx: 0, vy: 0,
+					mass: -1, 
+					radius: 0,
+					rotationSpeed: 0,
+					restitution: barrier.restitution,
+					friction: barrier.friction
+				};
+				this.applyImpulseResponse(b, dummyBarrierBody, nx, ny);
+			}
+		}
+	},
+	
+	resolvePeriodic: function(b, prevX, prevY) {
+		let didWrap = false;
+		for (const z of this.periodicZones) {
+			if (!z.enabled) continue;
+
+			const left = z.x;
+			const right = z.x + z.width;
+			const top = z.y;
+			const bottom = z.y + z.height;
+			const offset = (z.type === 'radius') ? b.radius : 0;
+			
+			const inY = (prevY >= top - offset && prevY <= bottom + offset);
+			
+			if (inY) {
+				if (prevX <= right + offset && b.x > right + offset) {
+					b.x -= z.width;
+					didWrap = true;
+				} else if (prevX >= left - offset && b.x < left - offset) {
+					b.x += z.width;
+					didWrap = true;
+				}
+			}
+			
+			const inX = (prevX >= left - offset && prevX <= right + offset);
+			
+			if (inX) {
+				if (prevY <= bottom + offset && b.y > bottom + offset) {
+					b.y -= z.height;
+					didWrap = true;
+				} else if (prevY >= top - offset && b.y < top - offset) {
+					b.y += z.height;
+					didWrap = true;
+				}
+			}
+		}
+		return didWrap;
+	},
+	
+	resolveCollision: function(b1, b2, nx, ny, dist, overlap) {
+		const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
+		let fx = 0, fy = 0;
+		
+		if (avgYoung > 0) {
+			const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
+			const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
+			const penetrationForce = avgYoung * overlap * contactWidth;
+			
+			fx -= penetrationForce * nx;
+			fy -= penetrationForce * ny;
+		}
+
+		const r1x = b1.radius * nx;
+		const r1y = b1.radius * ny;
+		const r2x = -b2.radius * nx;
+		const r2y = -b2.radius * ny;
+
+		const v1x = b1.vx - b1.rotationSpeed * r1y;
+		const v1y = b1.vy + b1.rotationSpeed * r1x;
+		const v2x = b2.vx - b2.rotationSpeed * r2y;
+		const v2y = b2.vy + b2.rotationSpeed * r2x;
+
+		const rvx = v2x - v1x;
+		const rvy = v2y - v1y;
+		
+		const vn = rvx * nx + rvy * ny;
+
+		if (vn < 0) {
+			const e = Math.min(b1.restitution, b2.restitution);
+			const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+			const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+			
+			const jnVal = -(1 + e) * vn / (invM1 + invM2);
+			const jnx = jnVal * nx;
+			const jny = jnVal * ny;
+
+			const tx = -ny;
+			const ty = nx;
+			const vt = rvx * tx + rvy * ty;
+
+			const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
+			const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
+			
+			const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
+			let jtVal = -vt / massTan;
+
+			const avgFriction = (b1.friction + b2.friction) / 2;
+			const maxFric = avgFriction * Math.abs(jnVal);
+			
+			if (jtVal > maxFric) jtVal = maxFric;
+			else if (jtVal < -maxFric) jtVal = -maxFric;
+
+			const jtx = jtVal * tx;
+			const jty = jtVal * ty;
+			const Jx = jnx + jtx;
+			const Jy = jny + jty;
+
+			if (b1.mass !== -1) {
+				b1.vx += Jx * invM1;
+				b1.vy += Jy * invM1;
+				const torque = (r1x * jty - r1y * jtx);
+				b1.rotationSpeed += torque * i1;
+			}
+			if (b2.mass !== -1) {
+				b2.vx -= Jx * invM2;
+				b2.vy -= Jy * invM2;
+				const torque = (r2x * -jty - r2y * -jtx);
+				b2.rotationSpeed += torque * i2;
+			}
+
+			const correctionPercent = 0.8;
+			const slop = 0.01;
+			const totalInvMass = invM1 + invM2;
+			if (totalInvMass > 0) {
+				const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
+				const cx = correctionMag * nx;
+				const cy = correctionMag * ny;
+
+				if (b1.mass !== -1) {
+					b1.x -= cx * invM1;
+					b1.y -= cy * invM1;
+				}
+				if (b2.mass !== -1) {
+					b2.x += cx * invM2;
+					b2.y += cy * invM2;
+				}
+			}
+		}
+
+		return { fx, fy };
+	},
+	
+	computeInteractions: function(bodies) {
+		const count = bodies.length;
 		for (let i = 0; i < count; i++) {
 			for (let j = i + 1; j < count; j++) {
 				const b1 = bodies[i];
@@ -469,13 +791,11 @@ const Simulation = {
 				}
 
 				if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-					const f_elec = -(this.Ke * b1.charge * b2.charge) / distSq;
-					f_total += f_elec; 
+					f_total -= (this.Ke * b1.charge * b2.charge) / distSq;
 				}
 
 				if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-					const f_mag = -(this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
-					f_total += f_mag;
+					f_total -= (this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
 				}
 
 				let fx = f_total * nx;
@@ -483,95 +803,9 @@ const Simulation = {
 
 				if (this.enableCollision && dist < minDist) {
 					const overlap = minDist - dist;
-					const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
-					
-					if (avgYoung > 0) {
-						const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
-						const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
-						const penetrationForce = avgYoung * overlap * contactWidth;
-						
-						fx -= penetrationForce * nx;
-						fy -= penetrationForce * ny;
-					}
-
-					const r1x = b1.radius * nx;
-					const r1y = b1.radius * ny;
-					const r2x = -b2.radius * nx;
-					const r2y = -b2.radius * ny;
-
-					const v1x = b1.vx - b1.rotationSpeed * r1y;
-					const v1y = b1.vy + b1.rotationSpeed * r1x;
-					const v2x = b2.vx - b2.rotationSpeed * r2y;
-					const v2y = b2.vy + b2.rotationSpeed * r2x;
-
-					const rvx = v2x - v1x;
-					const rvy = v2y - v1y;
-					
-					const vn = rvx * nx + rvy * ny;
-
-					if (vn < 0) {
-						const e = Math.min(b1.restitution, b2.restitution);
-						
-						const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-						const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
-						
-						const jnVal = -(1 + e) * vn / (invM1 + invM2);
-						const jnx = jnVal * nx;
-						const jny = jnVal * ny;
-
-						const tx = -ny;
-						const ty = nx;
-						const vt = rvx * tx + rvy * ty;
-
-						const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
-						const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
-						
-						const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
-						let jtVal = -vt / massTan;
-
-						const avgFriction = (b1.friction + b2.friction) / 2;
-						const maxFric = avgFriction * Math.abs(jnVal);
-						
-						if (jtVal > maxFric) jtVal = maxFric;
-						else if (jtVal < -maxFric) jtVal = -maxFric;
-
-						const jtx = jtVal * tx;
-						const jty = jtVal * ty;
-
-						const Jx = jnx + jtx;
-						const Jy = jny + jty;
-
-						if (b1.mass !== -1) {
-							b1.vx += Jx * invM1;
-							b1.vy += Jy * invM1;
-							const torque = (r1x * jty - r1y * jtx);
-							b1.rotationSpeed += torque * i1;
-						}
-						if (b2.mass !== -1) {
-							b2.vx -= Jx * invM2;
-							b2.vy -= Jy * invM2;
-							const torque = (r2x * -jty - r2y * -jtx);
-							b2.rotationSpeed += torque * i2;
-						}
-
-						const correctionPercent = 0.8;
-						const slop = 0.01;
-						const totalInvMass = invM1 + invM2;
-						if (totalInvMass > 0) {
-							const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
-							const cx = correctionMag * nx;
-							const cy = correctionMag * ny;
-
-							if (b1.mass !== -1) {
-								b1.x -= cx * invM1;
-								b1.y -= cy * invM1;
-							}
-							if (b2.mass !== -1) {
-								b2.x += cx * invM2;
-								b2.y += cy * invM2;
-							}
-						}
-					}
+					const forces = this.resolveCollision(b1, b2, nx, ny, dist, overlap);
+					fx += forces.fx;
+					fy += forces.fy;
 				}
 
 				if (b1.mass !== -1) {
@@ -584,6 +818,65 @@ const Simulation = {
 				}
 			}
 		}
+	},
+	
+	integrateBody: function(b, dt) {
+		if (b.mass === -1) {
+			b.vx = 0; b.vy = 0; b.ax = 0; b.ay = 0;
+			return false;
+		}
+
+		b.vx += b.ax * dt;
+		b.vy += b.ay * dt;
+
+		const c2 = this.c * this.c;
+		const vSq = b.vx*b.vx + b.vy*b.vy;
+		if (vSq > c2) {
+			const v = Math.sqrt(vSq);
+			const ratio = (this.c * 0.999) / v;
+			b.vx *= ratio;
+			b.vy *= ratio;
+		}
+
+		const prevX = b.x;
+		const prevY = b.y;
+
+		b.x += b.vx * dt;
+		b.y += b.vy * dt;
+		
+		this.resolveBarriers(b, prevX, prevY);
+		const wrapped = this.resolvePeriodic(b, prevX, prevY);
+		if (wrapped) {
+			b.path = [];
+		}
+		
+		if (b.rotationSpeed !== 0) {
+			if (typeof b.angle === 'undefined') b.angle = 0;
+			b.angle += b.rotationSpeed * dt;
+		}
+
+		return wrapped;
+	},
+	
+	update: function(force = false) {
+		if (this.paused && !force) return;
+
+		const bodies = this.bodies;
+		let count = bodies.length;
+		const dt = this.dt;
+
+		this.tickCount++;
+
+		for (let i = 0; i < count; i++) {
+			if (bodies[i].mass === -1) {
+				bodies[i].ax = 0; bodies[i].ay = 0; bodies[i].vx = 0; bodies[i].vy = 0;
+				continue;
+			}
+			this.computeExternalForces(bodies[i]);
+		}
+
+		this.computeBonds(bodies, dt);
+		this.computeInteractions(bodies);
 	
 		for (let i = 0; i < count; i++) {
 			const b = bodies[i];
@@ -594,197 +887,23 @@ const Simulation = {
 			
 			if (b.lifetime === 0) {
 				bodies.splice(i, 1);
-				count--;
-				i--;
+				count--; i--;
 				continue;
 			}
 
-			if (b.mass === -1) {
-				b.vx = 0;
-				b.vy = 0;
-				b.ax = 0;
-				b.ay = 0;
-			} else {
-				b.vx += b.ax * dt;
-				b.vy += b.ay * dt;
+			this.integrateBody(b, dt);
 
-				const vSq = b.vx*b.vx + b.vy*b.vy;
-				if (vSq > c2) {
-					const v = Math.sqrt(vSq);
-					const ratio = (this.c * 0.999) / v;
-					b.vx *= ratio;
-					b.vy *= ratio;
+			if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
+				if (b.path.length === 0 || 
+					(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
+					Math.abs(b.y - b.path[b.path.length-1].y) < 1000)) {
+					b.path.push({x: b.x, y: b.y});
 				}
-
-				const prevX = b.x;
-				const prevY = b.y;
-
-				b.x += b.vx * dt;
-				b.y += b.vy * dt;
-				
-				if (this.enableCollision) {
-					for (const barrier of this.solidBarriers) {
-						if (!barrier.enabled) continue;
-						
-						const bx1 = barrier.x1;
-						const by1 = barrier.y1;
-						const bx2 = barrier.x2;
-						const by2 = barrier.y2;
-						
-						let collisionDetected = false;
-						let nx = 0, ny = 0, dist = 0, overlap = 0;
-						
-						const den = (bx1 - bx2) * (prevY - b.y) - (by1 - by2) * (prevX - b.x);
-						if (den !== 0) {
-							const t = ((bx1 - prevX) * (prevY - b.y) - (by1 - prevY) * (prevX - b.x)) / den;
-							const u = -((bx1 - bx2) * (by1 - prevY) - (by1 - by2) * (bx1 - prevX)) / den;
-							
-							if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-								collisionDetected = true;
-								const ix = bx1 + t * (bx2 - bx1);
-								const iy = by1 + t * (by2 - by1);
-								
-								const segX = bx2 - bx1;
-								const segY = by2 - by1;
-								const segLen = Math.sqrt(segX*segX + segY*segY);
-								nx = -segY / segLen;
-								ny = segX / segLen;
-								
-								const approach = (b.x - prevX)*nx + (b.y - prevY)*ny;
-								if (approach > 0) {
-									nx = -nx; ny = -ny;
-								}
-								
-								b.x = ix + nx * (b.radius + 0.01);
-								b.y = iy + ny * (b.radius + 0.01);
-							}
-						}
-
-						if (!collisionDetected) {
-							const segX = bx2 - bx1;
-							const segY = by2 - by1;
-							const segLenSq = segX*segX + segY*segY;
-							
-							if (segLenSq > 0) {
-								const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-								const tClamped = Math.max(0, Math.min(1, dot));
-								
-								const closestX = bx1 + tClamped * segX;
-								const closestY = by1 + tClamped * segY;
-								
-								const distX = b.x - closestX;
-								const distY = b.y - closestY;
-								const distSq = distX*distX + distY*distY;
-								dist = Math.sqrt(distSq);
-								
-								if (dist < b.radius) {
-									collisionDetected = true;
-									nx = distX / dist;
-									ny = distY / dist;
-									overlap = b.radius - dist;
-									b.x += nx * overlap;
-									b.y += ny * overlap;
-								}
-							}
-						}
-						
-						if (collisionDetected) {
-							const rcpX = -nx * b.radius;
-							const rcpY = -ny * b.radius;
-							
-							const vpX = b.vx - b.rotationSpeed * rcpY;
-							const vpY = b.vy + b.rotationSpeed * rcpX;
-							
-							const vn = vpX * nx + vpY * ny;
-							
-							if (vn < 0) {
-								const e = Math.min(b.restitution, barrier.restitution);
-								const invMass = 1 / b.mass;
-								const jnVal = -(1 + e) * vn / invMass;
-								
-								const jnx = jnVal * nx;
-								const jny = jnVal * ny;
-								
-								const tx = -ny;
-								const ty = nx;
-								const vt = vpX * tx + vpY * ty;
-								
-								const invInertia = 1 / (0.5 * b.mass * b.radius * b.radius);
-								const massTan = invMass + (b.radius * b.radius * invInertia);
-								let jtVal = -vt / massTan;
-								
-								const avgFriction = (b.friction + barrier.friction) / 2;
-								const maxFric = avgFriction * Math.abs(jnVal);
-								
-								if (jtVal > maxFric) jtVal = maxFric;
-								else if (jtVal < -maxFric) jtVal = -maxFric;
-								
-								const jtx = jtVal * tx;
-								const jty = jtVal * ty;
-								
-								b.vx += (jnx + jtx) * invMass;
-								b.vy += (jny + jty) * invMass;
-								
-								const torque = (rcpX * jty - rcpY * jtx);
-								b.rotationSpeed += torque * invInertia;
-							}
-						}
-					}
+				if (b.path.length > this.trailLength) {
+					b.path.shift();
 				}
-				
-				for (const z of this.periodicZones) {
-					if (!z.enabled) continue;
-
-					const left = z.x;
-					const right = z.x + z.width;
-					const top = z.y;
-					const bottom = z.y + z.height;
-					const offset = (z.type === 'radius') ? b.radius : 0;
-					
-					const inY = (prevY >= top - offset && prevY <= bottom + offset);
-					
-					if (inY) {
-						if (prevX <= right + offset && b.x > right + offset) {
-							b.x -= z.width;
-							b.path = [];
-						} else if (prevX >= left - offset && b.x < left - offset) {
-							b.x += z.width;
-							b.path = [];
-						}
-					}
-					
-					const inX = (prevX >= left - offset && prevX <= right + offset);
-					
-					if (inX) {
-						if (prevY <= bottom + offset && b.y > bottom + offset) {
-							b.y -= z.height;
-							b.path = [];
-						} else if (prevY >= top - offset && b.y < top - offset) {
-							b.y += z.height;
-							b.path = [];
-						}
-					}
-				}
-				
-				if (b.rotationSpeed !== 0) {
-					if (typeof b.angle === 'undefined') {
-						b.angle = 0;
-					}
-					b.angle += b.rotationSpeed * dt;
-				}
-
-				if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
-					if (b.path.length === 0 || 
-						(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
-						Math.abs(b.y - b.path[b.path.length-1].y) < 1000)) {
-						b.path.push({x: b.x, y: b.y});
-					}
-					if (b.path.length > this.trailLength) {
-						b.path.shift();
-					}
-				} else if (!this.showTrails && b.path.length > 0) {
-					b.path = [];
-				}
+			} else if (!this.showTrails && b.path.length > 0) {
+				b.path = [];
 			}
 		}
 
@@ -795,7 +914,6 @@ const Simulation = {
 		const tempBodies = JSON.parse(JSON.stringify(this.bodies));
 		if (!tempBodies[bodyIndex]) return [];
 		
-		const c2 = this.c * this.c;
 		const predictedPath = [];
 		const count = tempBodies.length;
 		const dt = stepDt;
@@ -807,414 +925,20 @@ const Simulation = {
 					tempBodies[i].ay = 0;
 					continue;
 				}
-
-				tempBodies[i].ax = tempBodies[i].startAx;
-				tempBodies[i].ay = tempBodies[i].startAy;
-				
-				if (tempBodies[i].charge !== 0) {
-					const field = this.calculateFormulaField(tempBodies[i].x, tempBodies[i].y);
-					tempBodies[i].ax += (tempBodies[i].charge * field.Ex) / tempBodies[i].mass;
-					tempBodies[i].ay += (tempBodies[i].charge * field.Ey) / tempBodies[i].mass;
-				}
-
-				for (const z of this.viscosityZones) {
-					if (!z.enabled) continue;
-					if (tempBodies[i].x >= z.x && tempBodies[i].x <= z.x + z.width &&
-						tempBodies[i].y >= z.y && tempBodies[i].y <= z.y + z.height) {
-						const fx = -tempBodies[i].vx * z.viscosity;
-						const fy = -tempBodies[i].vy * z.viscosity;
-						tempBodies[i].ax += fx / tempBodies[i].mass;
-						tempBodies[i].ay += fy / tempBodies[i].mass;
-					}
-				}
-
-				for (const z of this.fieldZones) {
-					if (!z.enabled) continue;
-					if (tempBodies[i].x >= z.x && tempBodies[i].x <= z.x + z.width &&
-						tempBodies[i].y >= z.y && tempBodies[i].y <= z.y + z.height) {
-						tempBodies[i].ax += z.fx;
-						tempBodies[i].ay += z.fy;
-					}
-				}
+				this.computeExternalForces(tempBodies[i]);
 			}
 
-			for (const bond of this.elasticBonds) {
-				if (!bond.enabled) continue;
-				const b1 = tempBodies[bond.body1];
-				const b2 = tempBodies[bond.body2];
-				if (!b1 || !b2) continue;
-
-				if (b1.mass === -1 && b2.mass === -1) continue;
-
-				const dx = b2.x - b1.x;
-				const dy = b2.y - b1.y;
-				const dist = Math.sqrt(dx*dx + dy*dy);
-				if (dist === 0) continue;
-
-				let targetLen = bond.length;
-				if (bond.activeAmp !== 0 && bond.activeFreq !== 0) {
-					targetLen = bond.length; 
-				}
-
-				const displacement = dist - targetLen;
-				if ((bond.type === 'rope' || bond.type === 'chain') && displacement <= 0) continue;
-
-				let forceMag = 0;
-				if (bond.nonLinearity !== 1 && bond.nonLinearity > 0) {
-					const sign = displacement >= 0 ? 1 : -1;
-					forceMag = bond.stiffness * sign * Math.pow(Math.abs(displacement), bond.nonLinearity);
-				} else {
-					forceMag = bond.stiffness * displacement;
-				}
-				
-				const invM1 = b1.mass === -1 ? 0 : 1.0 / b1.mass;
-				const invM2 = b2.mass === -1 ? 0 : 1.0 / b2.mass;
-				const totalInvMass = invM1 + invM2;
-				
-				if (totalInvMass > 0 && dt > 0) {
-					const maxForce = (Math.abs(displacement) * 0.8) / (totalInvMass * dt * dt);
-					if (Math.abs(forceMag) > maxForce) {
-						forceMag = Math.sign(forceMag) * maxForce;
-					}
-				}
-
-				const nx = dx / dist;
-				const ny = dy / dist;
-
-				const dvx = b2.vx - b1.vx;
-				const dvy = b2.vy - b1.vy;
-				const relVel = dvx * nx + dvy * ny;
-				
-				let dampForce = bond.damping * relVel;
-				
-				if (totalInvMass > 0 && dt > 0) {
-					const maxDamp = Math.abs(relVel) / (totalInvMass * dt);
-					if (Math.abs(dampForce) > maxDamp) {
-						dampForce = Math.sign(dampForce) * maxDamp;
-					}
-				}
-
-				const totalForce = forceMag + dampForce;
-				
-				const fx = totalForce * nx;
-				const fy = totalForce * ny;
-
-				if (b1.mass !== -1) {
-					b1.ax += fx * invM1;
-					b1.ay += fy * invM1;
-				}
-				if (b2.mass !== -1) {
-					b2.ax -= fx * invM2;
-					b2.ay -= fy * invM2;
-				}
-			}
-
-			for (let i = 0; i < count; i++) {
-				for (let j = i + 1; j < count; j++) {
-					const b1 = tempBodies[i];
-					const b2 = tempBodies[j];
-
-					const dx = b2.x - b1.x;
-					const dy = b2.y - b1.y;
-					const distSq = dx*dx + dy*dy;
-					if (distSq === 0) continue;
-					const dist = Math.sqrt(distSq);
-					const minDist = b1.radius + b2.radius;
-
-					const nx = dx / dist;
-					const ny = dy / dist;
-					
-					let f_total = 0;
-
-					if (this.enableGravity) {
-						const m1 = b1.mass === -1 ? 1 : b1.mass;
-						const m2 = b2.mass === -1 ? 1 : b2.mass;
-						f_total += (this.G * m1 * m2) / distSq;
-					}
-
-					if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-						const f_elec = -(this.Ke * b1.charge * b2.charge) / distSq;
-						f_total += f_elec; 
-					}
-
-					if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-						const f_mag = -(this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
-						f_total += f_mag;
-					}
-
-					let fx = f_total * nx;
-					let fy = f_total * ny;
-					
-					if (this.enableCollision && dist < minDist) {
-						const overlap = minDist - dist;
-						const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
-						if (avgYoung > 0) {
-							const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
-							const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
-							const penetrationForce = avgYoung * overlap * contactWidth;
-							fx -= penetrationForce * nx;
-							fy -= penetrationForce * ny;
-						}
-						
-						const r1x = b1.radius * nx;
-						const r1y = b1.radius * ny;
-						const r2x = -b2.radius * nx;
-						const r2y = -b2.radius * ny;
-
-						const v1x = b1.vx - b1.rotationSpeed * r1y;
-						const v1y = b1.vy + b1.rotationSpeed * r1x;
-						const v2x = b2.vx - b2.rotationSpeed * r2y;
-						const v2y = b2.vy + b2.rotationSpeed * r2x;
-
-						const rvx = v2x - v1x;
-						const rvy = v2y - v1y;
-						
-						const vn = rvx * nx + rvy * ny;
-
-						if (vn < 0) {
-							const e = Math.min(b1.restitution, b2.restitution);
-							const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-							const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
-							
-							const jnVal = -(1 + e) * vn / (invM1 + invM2);
-							const jnx = jnVal * nx;
-							const jny = jnVal * ny;
-
-							const tx = -ny;
-							const ty = nx;
-							const vt = rvx * tx + rvy * ty;
-
-							const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
-							const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
-							
-							const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
-							let jtVal = -vt / massTan;
-
-							const avgFriction = (b1.friction + b2.friction) / 2;
-							const maxFric = avgFriction * Math.abs(jnVal);
-							
-							if (jtVal > maxFric) jtVal = maxFric;
-							else if (jtVal < -maxFric) jtVal = -maxFric;
-
-							const jtx = jtVal * tx;
-							const jty = jtVal * ty;
-
-							const Jx = jnx + jtx;
-							const Jy = jny + jty;
-
-							if (b1.mass !== -1) {
-								b1.vx += Jx * invM1;
-								b1.vy += Jy * invM1;
-								const torque = (r1x * jty - r1y * jtx);
-								b1.rotationSpeed += torque * i1;
-							}
-							if (b2.mass !== -1) {
-								b2.vx -= Jx * invM2;
-								b2.vy -= Jy * invM2;
-								const torque = (r2x * -jty - r2y * -jtx);
-								b2.rotationSpeed += torque * i2;
-							}
-							
-							const correctionPercent = 0.8;
-							const slop = 0.01;
-							const totalInvMass = invM1 + invM2;
-							if (totalInvMass > 0) {
-								const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
-								const cx = correctionMag * nx;
-								const cy = correctionMag * ny;
-
-								if (b1.mass !== -1) {
-									b1.x -= cx * invM1;
-									b1.y -= cy * invM1;
-								}
-								if (b2.mass !== -1) {
-									b2.x += cx * invM2;
-									b2.y += cy * invM2;
-								}
-							}
-						}
-					}
-
-					if (b1.mass !== -1) {
-						b1.ax += fx / b1.mass;
-						b1.ay += fy / b1.mass;
-					}
-					if (b2.mass !== -1) {
-						b2.ax -= fx / b2.mass;
-						b2.ay -= fy / b2.mass;
-					}
-				}
-			}
+			this.computeBonds(tempBodies, dt);
+			this.computeInteractions(tempBodies);
 
 			let targetJumped = false;
 
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
-				if (b.mass === -1) {
-					b.vx = 0; b.vy = 0;
-				} else {
-					b.vx += b.ax * dt;
-					b.vy += b.ay * dt;
-					
-					const vSq = b.vx*b.vx + b.vy*b.vy;
-					if (vSq > c2) {
-						const v = Math.sqrt(vSq);
-						const ratio = (this.c * 0.999) / v;
-						b.vx *= ratio;
-						b.vy *= ratio;
-					}
-					
-					const prevX = b.x;
-					const prevY = b.y;
+				const wrapped = this.integrateBody(b, dt);
 
-					b.x += b.vx * dt;
-					b.y += b.vy * dt;
-					
-					if (this.enableCollision) {
-						for (const barrier of this.solidBarriers) {
-							if (!barrier.enabled) continue;
-							const bx1 = barrier.x1;
-							const by1 = barrier.y1;
-							const bx2 = barrier.x2;
-							const by2 = barrier.y2;
-							
-							let collisionDetected = false;
-							let nx = 0, ny = 0, dist = 0, overlap = 0;
-							
-							const den = (bx1 - bx2) * (prevY - b.y) - (by1 - by2) * (prevX - b.x);
-							if (den !== 0) {
-								const t = ((bx1 - prevX) * (prevY - b.y) - (by1 - prevY) * (prevX - b.x)) / den;
-								const u = -((bx1 - bx2) * (by1 - prevY) - (by1 - by2) * (bx1 - prevX)) / den;
-								
-								if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-									collisionDetected = true;
-									const ix = bx1 + t * (bx2 - bx1);
-									const iy = by1 + t * (by2 - by1);
-									
-									const segX = bx2 - bx1;
-									const segY = by2 - by1;
-									const segLen = Math.sqrt(segX*segX + segY*segY);
-									nx = -segY / segLen;
-									ny = segX / segLen;
-									
-									const approach = (b.x - prevX)*nx + (b.y - prevY)*ny;
-									if (approach > 0) {
-										nx = -nx; ny = -ny;
-									}
-									
-									b.x = ix + nx * (b.radius + 0.01);
-									b.y = iy + ny * (b.radius + 0.01);
-								}
-							}
-							
-							if (!collisionDetected) {
-								const segX = bx2 - bx1;
-								const segY = by2 - by1;
-								const segLenSq = segX*segX + segY*segY;
-								if (segLenSq > 0) {
-									const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-									const tClamped = Math.max(0, Math.min(1, dot));
-									const closestX = bx1 + tClamped * segX;
-									const closestY = by1 + tClamped * segY;
-									const distX = b.x - closestX;
-									const distY = b.y - closestY;
-									dist = Math.sqrt(distX*distX + distY*distY);
-									
-									if (dist < b.radius) {
-										collisionDetected = true;
-										nx = distX / dist;
-										ny = distY / dist;
-										overlap = b.radius - dist;
-										b.x += nx * overlap;
-										b.y += ny * overlap;
-									}
-								}
-							}
-							
-							if (collisionDetected) {
-								const rcpX = -nx * b.radius;
-								const rcpY = -ny * b.radius;
-								const vpX = b.vx - b.rotationSpeed * rcpY;
-								const vpY = b.vy + b.rotationSpeed * rcpX;
-								
-								const vn = vpX * nx + vpY * ny;
-								if (vn < 0) {
-									const e = Math.min(b.restitution, barrier.restitution);
-									const invMass = 1 / b.mass;
-									const jnVal = -(1 + e) * vn / invMass;
-									const jnx = jnVal * nx;
-									const jny = jnVal * ny;
-									
-									const tx = -ny;
-									const ty = nx;
-									const vt = vpX * tx + vpY * ty;
-									
-									const invInertia = 1 / (0.5 * b.mass * b.radius * b.radius);
-									const massTan = invMass + (b.radius * b.radius * invInertia);
-									let jtVal = -vt / massTan;
-									
-									const avgFriction = (b.friction + barrier.friction) / 2;
-									const maxFric = avgFriction * Math.abs(jnVal);
-									
-									if (jtVal > maxFric) jtVal = maxFric;
-									else if (jtVal < -maxFric) jtVal = -maxFric;
-									
-									const jtx = jtVal * tx;
-									const jty = jtVal * ty;
-									
-									b.vx += (jnx + jtx) * invMass;
-									b.vy += (jny + jty) * invMass;
-									
-									const torque = (rcpX * jty - rcpY * jtx);
-									b.rotationSpeed += torque * invInertia;
-								}
-							}
-						}
-					}
-
-					if (b.rotationSpeed !== 0 && typeof b.angle === 'undefined') {
-						b.angle = 0;
-					}
-					if (typeof b.angle !== 'undefined') {
-						b.angle += b.rotationSpeed * dt;
-					}
-
-					let didWrap = false;
-					for (const z of this.periodicZones) {
-						if (!z.enabled) continue;
-						
-						const left = z.x;
-						const right = z.x + z.width;
-						const top = z.y;
-						const bottom = z.y + z.height;
-						const offset = (z.type === 'radius') ? b.radius : 0;
-						
-						const inY = (prevY >= top - offset && prevY <= bottom + offset);
-						if (inY) {
-							if (prevX <= right + offset && b.x > right + offset) {
-								b.x -= z.width;
-								didWrap = true;
-							} else if (prevX >= left - offset && b.x < left - offset) {
-								b.x += z.width;
-								didWrap = true;
-							}
-						}
-						
-						const inX = (prevX >= left - offset && prevX <= right + offset);
-						if (inX) {
-							if (prevY <= bottom + offset && b.y > bottom + offset) {
-								b.y -= z.height;
-								didWrap = true;
-							} else if (prevY >= top - offset && b.y < top - offset) {
-								b.y += z.height;
-								didWrap = true;
-							}
-						}
-					}
-
-					if (i === bodyIndex && didWrap) {
-						targetJumped = true;
-					}
+				if (i === bodyIndex && wrapped) {
+					targetJumped = true;
 				}
 			}
 			

@@ -5,7 +5,26 @@ document.addEventListener('DOMContentLoaded', () => {
 	let draggedItemIndex = null;
 
 	const inputsToParse = ['newMass', 'newRadius', 'newRestitution', 'newX', 'newY', 'newCharge', 'newVX', 'newVY', 'newMagMoment', 'newAX', 'newAY', 'newRotationSpeed', 'newTemperature', 'newYoungModulus', 'newFriction', 'newLifetime'];
-
+	
+	const bodyProperties = [
+		{ label: 'Mass', key: 'mass', cls: 'inp-mass', tip: 'Body mass. Set to -1 for a fixed body.', constraint: 'mass' },
+		{ label: 'Radius', key: 'radius', cls: 'inp-radius', tip: 'Body radius for collisions.', constraint: 'positive' },
+		{ label: 'Restitution', key: 'restitution', cls: 'inp-restitution', tip: 'Elasticity coefficient (0-1).', constraint: 'non-negative' },
+		{ label: 'Position X', key: 'x', cls: 'inp-x', tip: 'Current X coordinate.', constraint: 'default', prec: 2 },
+		{ label: 'Position Y', key: 'y', cls: 'inp-y', tip: 'Current Y coordinate.', constraint: 'default', prec: 2 },
+		{ label: 'Charge (e)', key: 'charge', cls: 'inp-charge', tip: 'Electric charge.', constraint: 'default' },
+		{ label: 'Velocity X', key: 'vx', cls: 'inp-vx', tip: 'Current velocity on X axis.', constraint: 'default', prec: 3 },
+		{ label: 'Velocity Y', key: 'vy', cls: 'inp-vy', tip: 'Current velocity on Y axis.', constraint: 'default', prec: 3 },
+		{ label: 'Mag Moment', key: 'magMoment', cls: 'inp-magMoment', tip: 'Magnetic moment.', constraint: 'default' },
+		{ label: 'Start Acc X', key: 'startAx', cls: 'inp-start-ax', tip: 'Constant acceleration on X.', constraint: 'default', prec: 3 },
+		{ label: 'Start Acc Y', key: 'startAy', cls: 'inp-start-ay', tip: 'Constant acceleration on Y.', constraint: 'default', prec: 3 },
+		{ label: 'Rotation Speed', key: 'rotationSpeed', cls: 'inp-rotSpeed', tip: 'Rotation speed.', constraint: 'default', prec: 3 },
+		{ label: 'Temperature', key: 'temperature', cls: 'inp-temp', tip: 'Temperature (visual).', constraint: 'non-negative', prec: 0 },
+		{ label: 'Young\'s Mod.', key: 'youngModulus', cls: 'inp-youngMod', tip: 'Body hardness during collision.', constraint: 'non-negative', prec: 0 },
+		{ label: 'Friction', key: 'friction', cls: 'inp-friction', tip: 'Friction coefficient.', constraint: 'non-negative' },
+		{ label: 'Lifetime', key: 'lifetime', cls: 'inp-lifetime', tip: 'Lifetime in \'ticks\'. -1 for infinite.', constraint: 'lifetime', prec: 0 }
+	];
+	
 	const evaluateMathExpression = (expr) => {
 		if (typeof expr !== 'string' || expr.trim() === '') return expr;
 
@@ -525,9 +544,25 @@ document.addEventListener('DOMContentLoaded', () => {
 		
 		const presetColor = document.getElementById('presetSelect').dataset.color || null;
 
-		Sim.addBody(m, x, y, vx, vy, radius, presetColor, null, ax, ay, 
-					charge, magMoment, restitution, 
-					lifetime, temperature, rotationSpeed, youngModulus, friction);
+		Sim.addBody({
+			mass: m,
+			x: x,
+			y: y,
+			vx: vx,
+			vy: vy,
+			radius: radius,
+			color: presetColor,
+			ax: ax,
+			ay: ay,
+			charge: charge,
+			magMoment: magMoment,
+			restitution: restitution,
+			lifetime: lifetime,
+			temperature: temperature,
+			rotationSpeed: rotationSpeed,
+			youngModulus: youngModulus,
+			friction: friction
+		});
 	};
 	
 	const bindRange = (idInput, idDisplay, obj, prop, isFloat = false, prec = 1) => {
@@ -1288,31 +1323,63 @@ document.addEventListener('DOMContentLoaded', () => {
 				</span>
 				<button class="btn-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
 			</div>
-			<div class="card-grid">
-				<div class="mini-input-group"><label>Mass <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body mass. Set to -1 for a fixed body."></i></label><input type="text" class="inp-mass" value="${body.mass}"></div>
-				<div class="mini-input-group"><label>Radius <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body radius for collisions."></i></label><input type="text" class="inp-radius" value="${body.radius}"></div>
-				<div class="mini-input-group"><label>Restitution <i class="fa-solid fa-circle-question help-icon" data-tooltip="Elasticity coefficient (0-1)."></i></label><input type="text" class="inp-restitution" value="${body.restitution}"></div>
-				<div class="mini-input-group"><label>Position X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current X coordinate."></i></label><input type="text" class="inp-x" value="${body.x}"></div>
-				<div class="mini-input-group"><label>Position Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current Y coordinate."></i></label><input type="text" class="inp-y" value="${body.y}"></div>
-				<div class="mini-input-group"><label>Charge (e) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Electric charge."></i></label><input type="text" class="inp-charge" value="${body.charge}"></div>
-				<div class="mini-input-group"><label>Velocity X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current velocity on X axis."></i></label><input type="text" class="inp-vx" value="${body.vx}"></div>
-				<div class="mini-input-group"><label>Velocity Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Current velocity on Y axis."></i></label><input type="text" class="inp-vy" value="${body.vy}"></div>
-				<div class="mini-input-group"><label>Mag Moment <i class="fa-solid fa-circle-question help-icon" data-tooltip="Magnetic moment."></i></label><input type="text" class="inp-magMoment" value="${body.magMoment}"></div>
-				<div class="mini-input-group"><label>Start Acc X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration on X."></i></label><input type="text" class="inp-start-ax" value="${body.startAx}"></div>
-				<div class="mini-input-group"><label>Start Acc Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration on Y."></i></label><input type="text" class="inp-start-ay" value="${body.startAy}"></div>
-				<div class="mini-input-group"><label>Rotation Speed <i class="fa-solid fa-circle-question help-icon" data-tooltip="Rotation speed."></i></label><input type="text" class="inp-rotSpeed" value="${body.rotationSpeed}"></div>
-				<div class="mini-input-group"><label>Temperature <i class="fa-solid fa-circle-question help-icon" data-tooltip="Temperature (visual)."></i></label><input type="text" class="inp-temp" value="${body.temperature}"></div>
-				<div class="mini-input-group"><label>Young's Mod. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body hardness during collision."></i></label><input type="text" class="inp-youngMod" value="${body.youngModulus}"></div>
-				<div class="mini-input-group"><label>Friction <i class="fa-solid fa-circle-question help-icon" data-tooltip="Friction coefficient."></i></label><input type="text" class="inp-friction" value="${body.friction}"></div>
-				<div class="mini-input-group"><label>Lifetime <i class="fa-solid fa-circle-question help-icon" data-tooltip="Lifetime in 'ticks'. -1 for infinite."></i></label><input type="text" class="inp-lifetime" value="${body.lifetime}"></div>
-			</div>
+			<div class="card-grid"></div>
 		`;
 
-		const nameInput = div.querySelector('.body-name-input');
-		nameInput.addEventListener('change', (e) => {
-			body.name = e.target.value;
-		});
+		const fields = [
+			{ label: 'Mass', key: 'mass', cls: 'inp-mass', tip: 'Body mass. Set to -1 for a fixed body.', constraint: 'mass' },
+			{ label: 'Radius', key: 'radius', cls: 'inp-radius', tip: 'Body radius for collisions.', constraint: 'positive' },
+			{ label: 'Restitution', key: 'restitution', cls: 'inp-restitution', tip: 'Elasticity coefficient (0-1).', constraint: 'non-negative' },
+			{ label: 'Position X', key: 'x', cls: 'inp-x', tip: 'Current X coordinate.', constraint: 'default' },
+			{ label: 'Position Y', key: 'y', cls: 'inp-y', tip: 'Current Y coordinate.', constraint: 'default' },
+			{ label: 'Charge (e)', key: 'charge', cls: 'inp-charge', tip: 'Electric charge.', constraint: 'default' },
+			{ label: 'Velocity X', key: 'vx', cls: 'inp-vx', tip: 'Current velocity on X axis.', constraint: 'default' },
+			{ label: 'Velocity Y', key: 'vy', cls: 'inp-vy', tip: 'Current velocity on Y axis.', constraint: 'default' },
+			{ label: 'Mag Moment', key: 'magMoment', cls: 'inp-magMoment', tip: 'Magnetic moment.', constraint: 'default' },
+			{ label: 'Start Acc X', key: 'startAx', cls: 'inp-start-ax', tip: 'Constant acceleration on X.', constraint: 'default' },
+			{ label: 'Start Acc Y', key: 'startAy', cls: 'inp-start-ay', tip: 'Constant acceleration on Y.', constraint: 'default' },
+			{ label: 'Rotation Speed', key: 'rotationSpeed', cls: 'inp-rotSpeed', tip: 'Rotation speed.', constraint: 'default' },
+			{ label: 'Temperature', key: 'temperature', cls: 'inp-temp', tip: 'Temperature (visual).', constraint: 'non-negative' },
+			{ label: 'Young\'s Mod.', key: 'youngModulus', cls: 'inp-youngMod', tip: 'Body hardness during collision.', constraint: 'non-negative' },
+			{ label: 'Friction', key: 'friction', cls: 'inp-friction', tip: 'Friction coefficient.', constraint: 'non-negative' },
+			{ label: 'Lifetime', key: 'lifetime', cls: 'inp-lifetime', tip: 'Lifetime in \'ticks\'. -1 for infinite.', constraint: 'lifetime' }
+		];
+
+		const grid = div.querySelector('.card-grid');
 		
+		fields.forEach(field => {
+			const group = document.createElement('div');
+			group.className = 'mini-input-group';
+			group.innerHTML = `<label>${field.label} <i class="fa-solid fa-circle-question help-icon" data-tooltip="${field.tip}"></i></label><input type="text" class="${field.cls}" value="${body[field.key]}">`;
+			grid.appendChild(group);
+
+			const input = group.querySelector('input');
+			const label = group.querySelector('label');
+			
+			addMathParsing(input);
+			setupInteractiveLabel(label, input, field.constraint);
+
+			input.addEventListener('mousedown', (e) => e.stopPropagation());
+			const handler = () => {
+				const val = parseFloat(input.value);
+				if (!isNaN(val)) {
+					// Handle specific logic for -1 mass/lifetime or limits
+					if (field.constraint === 'mass' && val < 1e-6 && val !== -1) body[field.key] = 1e-6;
+					else if (field.constraint === 'positive' && val < 1e-6) body[field.key] = 1e-6;
+					else if (field.constraint === 'non-negative' && val < 0) body[field.key] = 0;
+					else body[field.key] = val;
+				}
+				// Force UI update if corrected
+				if (body[field.key] !== val && !(field.constraint==='mass' && val===-1)) {
+					input.value = body[field.key];
+				}
+			};
+			input.addEventListener('change', handler);
+			input.addEventListener('input', handler);
+		});
+
+		const nameInput = div.querySelector('.body-name-input');
+		nameInput.addEventListener('change', (e) => { body.name = e.target.value; });
 		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
 		
 		const trackBtn = div.querySelector('.btn-track');
@@ -1345,94 +1412,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			Sim.bodies.splice(index, 1);
 			refreshBodyList();
 		});
-
-		const inpMass = div.querySelector('.inp-mass');
-		const inpRadius = div.querySelector('.inp-radius');
-		const inpX = div.querySelector('.inp-x');
-		const inpY = div.querySelector('.inp-y');
-		const inpVX = div.querySelector('.inp-vx');
-		const inpVY = div.querySelector('.inp-vy');
-		const inpAX = div.querySelector('.inp-start-ax');
-		const inpAY = div.querySelector('.inp-start-ay');
-		
-		const inpCharge = div.querySelector('.inp-charge');
-		const inpMagMoment = div.querySelector('.inp-magMoment');
-		const inpRestitution = div.querySelector('.inp-restitution');
-		const inpLifetime = div.querySelector('.inp-lifetime');
-		const inpTemp = div.querySelector('.inp-temp');
-		const inpRotSpeed = div.querySelector('.inp-rotSpeed');
-		const inpYoungMod = div.querySelector('.inp-youngMod');
-		const inpFriction = div.querySelector('.inp-friction');
-
-		const updatePhysics = () => {
-			const rawMass = parseFloat(inpMass.value);
-			body.mass = (rawMass === -1 || rawMass >= 1e-6) ? rawMass : 1e-6;
-			if (body.mass !== rawMass) inpMass.value = body.mass;
-
-			const rawRadius = parseFloat(inpRadius.value);
-			body.radius = rawRadius >= 1e-6 ? rawRadius : 1e-6;
-			if (body.radius !== rawRadius) inpRadius.value = body.radius;
-
-			body.x = parseFloat(inpX.value) || 0;
-			body.y = parseFloat(inpY.value) || 0;
-			body.vx = parseFloat(inpVX.value) || 0;
-			body.vy = parseFloat(inpVY.value) || 0;
-			body.startAx = parseFloat(inpAX.value) || 0;
-			body.startAy = parseFloat(inpAY.value) || 0;
-			
-			body.charge = parseFloat(inpCharge.value) || 0;
-			body.magMoment = parseFloat(inpMagMoment.value) || 0;
-
-			const rawRestitution = parseFloat(inpRestitution.value);
-			body.restitution = rawRestitution >= 0 ? rawRestitution : 1.0;
-			if (body.restitution !== rawRestitution) inpRestitution.value = body.restitution;
-
-			const rawLifetime = parseFloat(inpLifetime.value);
-			body.lifetime = (rawLifetime >= -1) ? rawLifetime : -1;
-			if (body.lifetime !== rawLifetime) inpLifetime.value = body.lifetime;
-			
-			const rawTemp = parseFloat(inpTemp.value);
-			body.temperature = rawTemp >= 0 ? rawTemp : 0;
-			if (body.temperature !== rawTemp) inpTemp.value = body.temperature;
-
-			body.rotationSpeed = parseFloat(inpRotSpeed.value) || 0;
-			
-			const rawYoung = parseFloat(inpYoungMod.value);
-			body.youngModulus = rawYoung >= 0 ? rawYoung : 0;
-			if (body.youngModulus !== rawYoung) inpYoungMod.value = body.youngModulus;
-
-			const rawFriction = parseFloat(inpFriction.value);
-			body.friction = rawFriction >= 0 ? rawFriction : 0.5;
-			if (body.friction !== rawFriction) inpFriction.value = body.friction;
-		};
-
-		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
-		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, 
-		 inpRotSpeed, inpYoungMod, inpFriction].forEach(inp => {
-			addMathParsing(inp);
-			inp.addEventListener('change', updatePhysics);
-			inp.addEventListener('input', updatePhysics);
-			inp.addEventListener('mousedown', (e) => e.stopPropagation());
-		});
-		
-		const cardConstraintMap = {
-			'.inp-mass': 'mass', '.inp-radius': 'positive', '.inp-restitution': 'non-negative',
-			'.inp-temp': 'non-negative', '.inp-youngMod': 'non-negative', '.inp-friction': 'non-negative',
-			'.inp-lifetime': 'lifetime'
-		};
-
-		div.querySelectorAll('.mini-input-group').forEach(group => {
-			const label = group.querySelector('label');
-			const input = group.querySelector('input');
-			let constraint = 'default';
-			for (const selector in cardConstraintMap) {
-				if (input.matches(selector)) {
-					constraint = cardConstraintMap[selector];
-					break;
-				}
-			}
-			setupInteractiveLabel(label, input, constraint);
-		});
 		
 		div.addEventListener('dragstart', (e) => {
 			if (e.target !== div) {
@@ -1464,21 +1443,13 @@ document.addEventListener('DOMContentLoaded', () => {
 			Sim.bodies.splice(draggedItemIndex, 1);
 			Sim.bodies.splice(targetIndex, 0, movedBody);
 			
-			if (Render.selectedBodyIdx === draggedItemIndex) {
-				Render.selectedBodyIdx = targetIndex;
-			} else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) {
-				Render.selectedBodyIdx--;
-			} else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) {
-				Render.selectedBodyIdx++;
-			}
+			if (Render.selectedBodyIdx === draggedItemIndex) Render.selectedBodyIdx = targetIndex;
+			else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) Render.selectedBodyIdx--;
+			else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) Render.selectedBodyIdx++;
 			
-			if (Render.trackedBodyIdx === draggedItemIndex) {
-				Render.trackedBodyIdx = targetIndex;
-			} else if (draggedItemIndex < targetIndex && Render.trackedBodyIdx > draggedItemIndex && Render.trackedBodyIdx <= targetIndex) {
-				Render.trackedBodyIdx--;
-			} else if (draggedItemIndex > targetIndex && Render.trackedBodyIdx < draggedItemIndex && Render.trackedBodyIdx >= targetIndex) {
-				Render.trackedBodyIdx++;
-			}
+			if (Render.trackedBodyIdx === draggedItemIndex) Render.trackedBodyIdx = targetIndex;
+			else if (draggedItemIndex < targetIndex && Render.trackedBodyIdx > draggedItemIndex && Render.trackedBodyIdx <= targetIndex) Render.trackedBodyIdx--;
+			else if (draggedItemIndex > targetIndex && Render.trackedBodyIdx < draggedItemIndex && Render.trackedBodyIdx >= targetIndex) Render.trackedBodyIdx++;
 
 			refreshBodyList();
 		});

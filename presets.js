@@ -235,7 +235,11 @@
 
 				const starMass = 25000;
 				const starRadius = Math.log(starMass) * 2;
-				sim.addBody(starMass, 0, 0, 0, 0, starRadius, '#ffeeb0', 'Sun', 0, 0, 0, 0, 1, -1, 6000, 0.02, 0, 0.5);
+				sim.addBody({
+					mass: starMass, x: 0, y: 0, vx: 0, vy: 0, radius: starRadius, 
+					color: '#ffeeb0', name: 'Sun', restitution: 1, temperature: 6000, 
+					rotationSpeed: 0.02, friction: 0.5
+				});
 
 				const count = 8;
 				let dist = 300;
@@ -262,7 +266,7 @@
 					else color = `hsl(${Math.random() * 40}, 30%, 60%)`;
 
 					const name = `Planet ${i+1}`;
-					sim.addBody(mass, x, y, vx, vy, radius, color, name);
+					sim.addBody({ mass, x, y, vx, vy, radius, color, name });
 
 					if (mass > 60) {
 						const moons = Math.floor(Math.random() * 2) + 1;
@@ -280,7 +284,10 @@
 							
 							const moonMass = Math.random() * 1.5 + 0.5;
 							const moonRad = Math.max(2, Math.log(moonMass) * 2);
-							sim.addBody(moonMass, mx, my, mvx, mvy, moonRad, '#d1d1d1', `${name}-m${m+1}`);
+							sim.addBody({ 
+								mass: moonMass, x: mx, y: my, vx: mvx, vy: mvy, 
+								radius: moonRad, color: '#d1d1d1', name: `${name}-m${m+1}` 
+							});
 						}
 					}
 				}
@@ -300,8 +307,16 @@
 				const dist = 400;
 				const v = Math.sqrt((sim.G * mass) / (4 * dist)); 
 
-				sim.addBody(mass, -dist, 0, 0, v, radius, '#ffcc00', 'Star A', 0, 0, 0, 0, 1, -1, 5000, 0.01, 0, 0.5);
-				sim.addBody(mass, dist, 0, 0, -v, radius, '#ffaa00', 'Star B', 0, 0, 0, 0, 1, -1, 5000, 0.01, 0, 0.5);
+				sim.addBody({
+					mass: mass, x: -dist, y: 0, vx: 0, vy: v, radius: radius, 
+					color: '#ffcc00', name: 'Star A', restitution: 1, temperature: 5000, 
+					rotationSpeed: 0.01, friction: 0.5
+				});
+				sim.addBody({
+					mass: mass, x: dist, y: 0, vx: 0, vy: -v, radius: radius, 
+					color: '#ffaa00', name: 'Star B', restitution: 1, temperature: 5000, 
+					rotationSpeed: 0.01, friction: 0.5
+				});
 				
 				for (let i = 0; i < 40; i++) {
 					const d = dist * 2 + Math.random() * 500;
@@ -316,7 +331,10 @@
 					const vx = -Math.sin(angle) * speed;
 					const vy = Math.cos(angle) * speed;
 					
-					sim.addBody(asteroidMass, x, y, vx, vy, astRad, '#888', `Asteroid ${i}`);
+					sim.addBody({ 
+						mass: asteroidMass, x: x, y: y, vx: vx, vy: vy, 
+						radius: astRad, color: '#888', name: `Asteroid ${i}` 
+					});
 				}
 			}
 		},
@@ -336,7 +354,7 @@
 					const mass = Math.random() * 40 + 5;
 					const radius = Math.max(2, Math.log(mass) * 2);
 					const color = `hsl(${Math.random() * 360}, 60%, 60%)`;
-					sim.addBody(mass, x, y, vx, vy, radius, color, `Body ${i}`);
+					sim.addBody({ mass, x, y, vx, vy, radius, color, name: `Body ${i}` });
 				}
 			}
 		},
@@ -350,7 +368,10 @@
 				const createGalaxy = (cx, cy, cvx, cvy, numStars, radius, colorBase) => {
 					const coreMass = 15000;
 					const coreRad = Math.log(coreMass) * 2;
-					sim.addBody(coreMass, cx, cy, cvx, cvy, coreRad, '#fff', 'Core', 0, 0, 0, 0, 0.5, -1, 0, 0, 0, 0.5);
+					sim.addBody({
+						mass: coreMass, x: cx, y: cy, vx: cvx, vy: cvy, radius: coreRad, 
+						color: '#fff', name: 'Core', restitution: 0.5, friction: 0.5
+					});
 					
 					for(let i=0; i<numStars; i++) {
 						const angle = Math.random() * Math.PI * 2;
@@ -365,7 +386,10 @@
 						
 						const starMass = Math.random() * 2 + 1;
 						const starRad = Math.max(2, Math.log(starMass) * 2);
-						sim.addBody(starMass, x, y, vx, vy, starRad, `hsl(${colorBase + Math.random()*40}, 70%, 70%)`, 'Star');
+						sim.addBody({
+							mass: starMass, x: x, y: y, vx: vx, vy: vy, radius: starRad, 
+							color: `hsl(${colorBase + Math.random()*40}, 70%, 70%)`, name: 'Star'
+						});
 					}
 				};
 				
@@ -391,18 +415,18 @@
 				for (let i = 0; i < 4; i++) {
 					const m = 20 + Math.random() * 30;
 					const r = Math.max(2, Math.log(m) * 2);
-					sim.addBody(
-						m, 
-						-250 + Math.random() * 500, 
-						-250 + Math.random() * 100, 
-						(Math.random() - 0.5) * 0.1, 
-						(Math.random() - 0.5) * 0.1, 
-						r,
-						`hsl(${Math.random() * 360}, 70%, 60%)`, 
-						`Ball ${i}`, 
-						0, 0, 0, 0, 
-						0.9, -1, 0, 0, 0, 0.5
-					);
+					sim.addBody({
+						mass: m, 
+						x: -250 + Math.random() * 500, 
+						y: -250 + Math.random() * 100, 
+						vx: (Math.random() - 0.5) * 0.1, 
+						vy: (Math.random() - 0.5) * 0.1, 
+						radius: r,
+						color: `hsl(${Math.random() * 360}, 70%, 60%)`, 
+						name: `Ball ${i}`,
+						restitution: 0.9, 
+						friction: 0.5
+					});
 				}
 			}
 		},
@@ -428,7 +452,7 @@
 						const color = fixed ? '#555' : '#3498db';
 						const mass = fixed ? -1 : 30;
 						
-						sim.addBody(mass, x, y, 0, 0, 5, color, `Node ${r}-${c}`);
+						sim.addBody({ mass, x, y, radius: 5, color, name: `Node ${r}-${c}` });
 					}
 				}
 				
@@ -456,7 +480,10 @@
 				sim.enableElectricity = true;
 				sim.enableCollision = false;
 				
-				sim.addBody(20000, 0, 0, 0, 0, 15, '#e74c3c', 'Proton', 0, 0, 50, 0, 1, -1, 0, 0, 0, 0.5);
+				sim.addBody({
+					mass: 20000, x: 0, y: 0, radius: 15, color: '#e74c3c', name: 'Proton',
+					charge: 50, restitution: 1, friction: 0.5
+				});
 
 				const orbitR = 200;
 				const electronMass = 10;
@@ -465,7 +492,10 @@
 				const force = (sim.Ke * Math.abs(50 * electronCharge)) / (orbitR * orbitR);
 				const velocity = Math.sqrt((force * orbitR) / electronMass);
 
-				sim.addBody(electronMass, orbitR, 0, 0, velocity, 5, '#3498db', 'Electron', 0, 0, electronCharge, 0, 1, -1, 0, 0, 0, 0.1);
+				sim.addBody({
+					mass: electronMass, x: orbitR, y: 0, vy: velocity, radius: 5, color: '#3498db', name: 'Electron',
+					charge: electronCharge, restitution: 1, friction: 0.1
+				});
 			}
 		},
 		{
@@ -479,16 +509,15 @@
 				sim.addSolidBarrier(-100, -100, 100, 100, 1.0, '#fff', 'Obstacle');
 				
 				for(let i=0; i<50; i++) {
-					sim.addBody(
-						5, 
-						-500 - Math.random() * 200, 
-						(Math.random() - 0.5) * 400, 
-						15 + Math.random() * 5, 
-						0, 
-						3,
-						'#2ecc71', 
-						`Particle ${i}`
-					);
+					sim.addBody({
+						mass: 5, 
+						x: -500 - Math.random() * 200, 
+						y: (Math.random() - 0.5) * 400, 
+						vx: 15 + Math.random() * 5, 
+						radius: 3,
+						color: '#2ecc71', 
+						name: `Particle ${i}`
+					});
 				}
 			}
 		},
@@ -504,17 +533,18 @@
 				sim.addPeriodicZone(-w/2, -h/2, w, h, '#e67e22', 'center');
 				
 				for(let i=0; i<80; i++) {
-					sim.addBody(
-						5, 
-						(Math.random() - 0.5) * (w - 20), 
-						(Math.random() - 0.5) * (h - 20), 
-						(Math.random() - 0.5) * 8, 
-						(Math.random() - 0.5) * 8, 
-						5,
-						`hsl(${Math.random() * 60 + 200}, 80%, 60%)`, 
-						`Mol ${i}`,
-						0, 0, 0, 0, 0.2, -1, 0, 0, 0, 0.1
-					);
+					sim.addBody({
+						mass: 5, 
+						x: (Math.random() - 0.5) * (w - 20), 
+						y: (Math.random() - 0.5) * (h - 20), 
+						vx: (Math.random() - 0.5) * 8, 
+						vy: (Math.random() - 0.5) * 8, 
+						radius: 5,
+						color: `hsl(${Math.random() * 60 + 200}, 80%, 60%)`, 
+						name: `Mol ${i}`,
+						restitution: 0.2, 
+						friction: 0.1
+					});
 				}
 			}
 		},
@@ -526,38 +556,46 @@
 				sim.enableElectricity = true;
 				sim.enableMagnetism = true;
 				
-				sim.addBody(5000, 0, 0, 0, 0, 20, '#f1c40f', 'Core +', 0, 0, 200, 0, 1, -1, 0, 0, 0, 0.5);
+				sim.addBody({
+					mass: 5000, x: 0, y: 0, radius: 20, color: '#f1c40f', name: 'Core +',
+					charge: 200, restitution: 1, friction: 0.5
+				});
 				
 				const count = 12;
 				const r = 250;
 				const v = -5;
 				for(let i=0; i<count; i++) {
 					const angle = (i / count) * Math.PI * 2;
-					sim.addBody(
-						1000, 
-						Math.cos(angle) * r, 
-						Math.sin(angle) * r, 
-						Math.cos(angle) * v, 
-						Math.sin(angle) * v, 
-						10,
-						'#e74c3c', 
-						`Magnet ${i}`, 
-						0, 0, -200, 200, 1, -1, 0, 0, 0, 0.5
-					);
+					sim.addBody({
+						mass: 1000, 
+						x: Math.cos(angle) * r, 
+						y: Math.sin(angle) * r, 
+						vx: Math.cos(angle) * v, 
+						vy: Math.sin(angle) * v, 
+						radius: 10,
+						color: '#e74c3c', 
+						name: `Magnet ${i}`, 
+						charge: -200, 
+						magMoment: 200, 
+						restitution: 1, 
+						friction: 0.5
+					});
 				}
 				
 				for(let i=0; i<20; i++) {
-					sim.addBody(
-						10, 
-						(Math.random() - 0.5) * 100, 
-						(Math.random() - 0.5) * 100, 
-						(Math.random() - 0.5) * 15, 
-						(Math.random() - 0.5) * 15, 
-						3,
-						'#3498db', 
-						`Electron ${i}`, 
-						0, 0, -5, 0, 1, -1, 0, 0, 0, 0.1
-					);
+					sim.addBody({
+						mass: 10, 
+						x: (Math.random() - 0.5) * 100, 
+						y: (Math.random() - 0.5) * 100, 
+						vx: (Math.random() - 0.5) * 15, 
+						vy: (Math.random() - 0.5) * 15, 
+						radius: 3,
+						color: '#3498db', 
+						name: `Electron ${i}`, 
+						charge: -5, 
+						restitution: 1, 
+						friction: 0.1
+					});
 				}
 			}
 		},
@@ -579,7 +617,7 @@
 				for (let i = 0; i < balls; i++) {
 					const x = startX + i * spacing;
 					
-					sim.addBody(-1, x, y - stringLen, 0, 0, 1, '#555', 'Anchor');
+					sim.addBody({ mass: -1, x: x, y: y - stringLen, radius: 1, color: '#555', name: 'Anchor' });
 					
 					let bx = x;
 					let by = y;
@@ -590,7 +628,11 @@
 						by = y - Math.sqrt(2)*100;
 					}
 					
-					sim.addBody(5, bx, by, vx, 0, radius, '#ccc', `Ball ${i}`, 0, 0, 0, 0, 1.0, -1, 0, 0, 20000, 0.1);
+					sim.addBody({
+						mass: 5, x: bx, y: by, vx: vx, radius: radius, 
+						color: '#ccc', name: `Ball ${i}`, restitution: 1.0, 
+						youngModulus: 20000, friction: 0.1
+					});
 					
 					sim.addElasticBond(i*2, i*2+1, {
 						type: 'chain',
@@ -621,7 +663,11 @@
 
 				for(let r=0; r<rows; r++) {
 					for(let c=0; c<cols; c++) {
-						sim.addBody(20, startX + c*spacing, startY + r*spacing, 0, 0, 8, '#e74c3c', 'Node', 0, 0, 0, 0, 0.5, -1, 0, 0, 0, 0.5);
+						sim.addBody({
+							mass: 20, x: startX + c*spacing, y: startY + r*spacing, 
+							radius: 8, color: '#e74c3c', name: 'Node', 
+							restitution: 0.5, friction: 0.5
+						});
 					}
 				}
 
@@ -659,7 +705,7 @@
 				const y = groundY - 30;
 
 				for(let i=0; i<segments; i++) {
-					sim.addBody(10, startX + i*spacing, y, 0, 0, 10, '#f1c40f', `Node ${i}`);
+					sim.addBody({ mass: 10, x: startX + i*spacing, y: y, radius: 10, color: '#f1c40f', name: `Node ${i}` });
 					
 					if (i > 0) {
 						sim.addElasticBond(i-1, i, {
@@ -683,7 +729,7 @@
 						}
 					}
 					
-					sim.addBody(5, startX + i*spacing, y + 25, 0, 0, 5, '#888', `Foot ${i}`);
+					sim.addBody({ mass: 5, x: startX + i*spacing, y: y + 25, radius: 5, color: '#888', name: `Foot ${i}` });
 					sim.addElasticBond(i*2, i*2+1, { stiffness: 80, damping: 2, length: 25 });
 					if (i > 0) {
 						sim.addElasticBond((i-1)*2+1, i*2+1, { stiffness: 5, damping: 5, length: spacing });
@@ -715,7 +761,14 @@
 				for(let r=0; r<rows; r++) {
 					for(let c=0; c<cols; c++) {
 						const fixed = (r === 0);
-						sim.addBody(fixed ? -1 : 10, startX + c*w, startY - r*h, 0, 0, 5, '#ecf0f1', 'Brick');
+						sim.addBody({
+							mass: fixed ? -1 : 10, 
+							x: startX + c*w, 
+							y: startY - r*h, 
+							radius: 5, 
+							color: '#ecf0f1', 
+							name: 'Brick'
+						});
 					}
 				}
 
@@ -733,7 +786,10 @@
 					}
 				}
 
-				sim.addBody(300, -300, 0, 30, 0, 25, '#2c3e50', 'Wrecking Ball');
+				sim.addBody({
+					mass: 300, x: -300, y: 0, vx: 30, radius: 25, 
+					color: '#2c3e50', name: 'Wrecking Ball'
+				});
 				
 				sim.addFieldZone(-600, -300, 1200, 700, 0, 0.1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
 			}
@@ -757,7 +813,14 @@
 				for(let r=0; r<rows; r++) {
 					for(let c=0; c<cols; c++) {
 						const fixed = (r === 0); 
-						sim.addBody(fixed ? -1 : 2, startX + c*spacing, startY + r*spacing, 0, 0, 3, '#fff', 'Node');
+						sim.addBody({
+							mass: fixed ? -1 : 2, 
+							x: startX + c*spacing, 
+							y: startY + r*spacing, 
+							radius: 3, 
+							color: '#fff', 
+							name: 'Node'
+						});
 					}
 				}
 
@@ -785,10 +848,13 @@
 				const segments = 15;
 				const len = 30;
 				
-				sim.addBody(-1, 0, -250, 0, 0, 10, '#fff', 'Anchor');
+				sim.addBody({ mass: -1, x: 0, y: -250, radius: 10, color: '#fff', name: 'Anchor' });
 				
 				for(let i=1; i<=segments; i++) {
-					sim.addBody(5, i * 5, -250 + i * len, 0, 0, 5, '#bdc3c7', `Link ${i}`);
+					sim.addBody({
+						mass: 5, x: i * 5, y: -250 + i * len, 
+						radius: 5, color: '#bdc3c7', name: `Link ${i}`
+					});
 					sim.addElasticBond(i-1, i, {
 						type: 'chain',
 						length: len,
@@ -799,7 +865,7 @@
 					});
 				}
 				
-				sim.addBody(50, segments * 5, -250 + (segments + 1) * len, 0, 0, 20, '#e67e22', 'Weight');
+				sim.addBody({ mass: 50, x: segments * 5, y: -250 + (segments + 1) * len, radius: 20, color: '#e67e22', name: 'Weight' });
 				sim.addElasticBond(segments, segments + 1, {
 					type: 'chain',
 					length: len,
@@ -831,9 +897,9 @@
 				const v1x = -0.5 * v3x;
 				const v1y = -0.5 * v3y;
 
-				sim.addBody(m, p1x, p1y, v1x, v1y, 10, '#3498db', 'Body 1');
-				sim.addBody(m, -p1x, -p1y, v1x, v1y, 10, '#e74c3c', 'Body 2');
-				sim.addBody(m, 0, 0, v3x, v3y, 10, '#f1c40f', 'Body 3');
+				sim.addBody({ mass: m, x: p1x, y: p1y, vx: v1x, vy: v1y, radius: 10, color: '#3498db', name: 'Body 1' });
+				sim.addBody({ mass: m, x: -p1x, y: -p1y, vx: v1x, vy: v1y, radius: 10, color: '#e74c3c', name: 'Body 2' });
+				sim.addBody({ mass: m, x: 0, y: 0, vx: v3x, vy: v3y, radius: 10, color: '#f1c40f', name: 'Body 3' });
 			}
 		},
 		{
@@ -850,17 +916,21 @@
 				const q = 4000;
 				const r = 20;
 
-				sim.addBody(-1, dist, dist, 0, 0, r, '#e74c3c', 'Fix +', 0, 0, q, 0, 1, -1, 0, 0, 0, 0.5);
-				sim.addBody(-1, -dist, -dist, 0, 0, r, '#e74c3c', 'Fix +', 0, 0, q, 0, 1, -1, 0, 0, 0, 0.5);
-				sim.addBody(-1, -dist, dist, 0, 0, r, '#3498db', 'Fix -', 0, 0, -q, 0, 1, -1, 0, 0, 0, 0.5);
-				sim.addBody(-1, dist, -dist, 0, 0, r, '#3498db', 'Fix -', 0, 0, -q, 0, 1, -1, 0, 0, 0, 0.5);
+				sim.addBody({ mass: -1, x: dist, y: dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, restitution: 1, friction: 0.5 });
+				sim.addBody({ mass: -1, x: -dist, y: -dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, restitution: 1, friction: 0.5 });
+				sim.addBody({ mass: -1, x: -dist, y: dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, restitution: 1, friction: 0.5 });
+				sim.addBody({ mass: -1, x: dist, y: -dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, restitution: 1, friction: 0.5 });
 
 				for(let i=0; i<70; i++) {
 					const bx = (Math.random() - 0.5) * 200;
 					const by = (Math.random() - 0.5) * 200;
 					const vx = (Math.random() - 0.5) * 2;
 					const vy = (Math.random() - 0.5) * 2;
-					sim.addBody(1, bx, by, vx, vy, 2, '#fff', 'Ion', 0, 0, 10, 0, 1, -1, 0, 0, 0, 0.1);
+					sim.addBody({
+						mass: 1, x: bx, y: by, vx: vx, vy: vy, 
+						radius: 2, color: '#fff', name: 'Ion', 
+						charge: 10, restitution: 1, friction: 0.1
+					});
 				}
 			}
 		},
@@ -874,7 +944,7 @@
 				sim.enableCollision = false;
 
 				const bhMass = 50000;
-				sim.addBody(bhMass, 0, 0, 0, 0, 8, '#fff', 'Black Hole');
+				sim.addBody({ mass: bhMass, x: 0, y: 0, radius: 8, color: '#fff', name: 'Black Hole' });
 
 				const stars = 60;
 				const arms = 3;
@@ -893,7 +963,10 @@
 
 					const hue = 200 + Math.random() * 60;
 					const color = `hsl(${hue}, 80%, 70%)`;
-					sim.addBody(Math.random()*3+1, x, y, vx, vy, Math.random()*2+1, color, 'Star');
+					sim.addBody({
+						mass: Math.random()*3+1, x, y, vx, vy, 
+						radius: Math.random()*2+1, color, name: 'Star'
+					});
 				}
 			}
 		},
@@ -919,8 +992,8 @@
 				const vy1 = x1 * angularVel;
 				const vy2 = x2 * angularVel;
 
-				sim.addBody(M1, x1, 0, 0, vy1, 20, '#f1c40f', 'Sun');
-				sim.addBody(M2, x2, 0, 0, vy2, 10, '#3498db', 'Planet');
+				sim.addBody({ mass: M1, x: x1, y: 0, vy: vy1, radius: 20, color: '#f1c40f', name: 'Sun' });
+				sim.addBody({ mass: M2, x: x2, y: 0, vy: vy2, radius: 10, color: '#3498db', name: 'Planet' });
 
 				const l4x = x1 + R * Math.cos(Math.PI/3);
 				const l4y = R * Math.sin(Math.PI/3);
@@ -939,7 +1012,16 @@
 						const offX = (Math.random()-0.5) * 17;
 						const offY = (Math.random()-0.5) * 17;
 						
-						sim.addBody(0.01, cx+offX, cy+offY, vX + (Math.random()-0.5)*0.4, vY + (Math.random()-0.5)*0.4, 0.2, '#95a5a6', label);
+						sim.addBody({
+							mass: 0.01, 
+							x: cx+offX, 
+							y: cy+offY, 
+							vx: vX + (Math.random()-0.5)*0.4, 
+							vy: vY + (Math.random()-0.5)*0.4, 
+							radius: 0.2, 
+							color: '#95a5a6', 
+							name: label
+						});
 					}
 				};
 
