@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		.map(k => ({
 			label: Schema[k].label,
 			key: Schema[k].internal || k,
-			cls: `inp-${k}`,
+			cls: `inp-${k.replace('_', '-')}`,
 			tip: Schema[k].tip,
 			constraint: Schema[k].constraint || 'default',
 			prec: Schema[k].prec
@@ -236,6 +236,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	const dtSlider = document.getElementById('dtSlider');
 	const dtDisplay = document.getElementById('dtVal');
 	
+	const thermoBox = document.getElementById('thermoBox');
+	const thermoParams = document.getElementById('thermoParams');
+	const ambientTempInput = document.getElementById('ambientTempInput');
+	
+	const toggleThermalZoneBtn = document.getElementById('toggleThermalZoneBtn');
+	const thermalZonesListContainer = document.getElementById('thermalZonesListContainer');
+	
 	if (dtSlider && dtDisplay) {
 		const minLog = Math.log10(0.000001);
 		const maxLog = Math.log10(100);
@@ -331,22 +338,29 @@ document.addEventListener('DOMContentLoaded', () => {
 			const radius = Math.max(2, Math.log(mass) * 2);
 			const charge = parseFloat(((Math.random() - 0.5) * 10).toFixed(2));
 			const magMoment = parseFloat(((Math.random() - 0.5) * 20).toFixed(2));
-			const restitution = parseFloat((Math.random() * 0.2).toFixed(3));
-			const temperature = Math.floor(Math.random() * 1000) + 100;
+			const restitution_base = parseFloat((Math.random() * 0.2).toFixed(3));
+			const temperature = Math.floor(Math.random() * 100) + 273;
 			const rotationSpeed = (Math.random() - 0.5) * 0.2;
-			const youngModulus = Math.floor(Math.random() * 1000) + 100;
+			const young_base = Math.floor(Math.random() * 1000) + 100;
 			const friction = setDefault ? 0.5 : parseFloat((Math.random() * 0.8 + 0.1).toFixed(2));
 
 			document.getElementById('newMass').value = formatVal(mass, 2);
 			document.getElementById('newRadius').value = formatVal(radius, 2);
 			document.getElementById('newCharge').value = formatVal(charge, 2);
 			document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
-			document.getElementById('newRestitution').value = formatVal(restitution, 2);
 			document.getElementById('newLifetime').value = -1;
-			document.getElementById('newTemperature').value = formatVal(temperature, 0);
 			document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
-			document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
 			document.getElementById('newFriction').value = formatVal(friction, 2);
+			
+			document.getElementById('newTemperature').value = formatVal(temperature, 0);
+			document.getElementById('newSpecificHeat').value = 1000;
+			document.getElementById('newAbsorptionFactor').value = 0.5;
+			document.getElementById('newCriticalTemp').value = 1200;
+			document.getElementById('newTransitionFactor').value = 0.01;
+			document.getElementById('newE_base').value = formatVal(restitution_base, 2);
+			document.getElementById('newE_min').value = 0.05;
+			document.getElementById('newY_base').value = formatVal(young_base, 0);
+			document.getElementById('newY_min').value = 10;
 			
 			const presetSelect = document.getElementById('presetSelect');
 			if (presetSelect) {
@@ -378,10 +392,10 @@ document.addEventListener('DOMContentLoaded', () => {
 				document.getElementById('newRadius').value = formatVal(params.radius, 2);
 				document.getElementById('newCharge').value = formatVal(params.charge, 2);
 				document.getElementById('newMagMoment').value = formatVal(params.magMoment, 2);
-				document.getElementById('newRestitution').value = formatVal(params.restitution, 2);
+				document.getElementById('newE_base').value = formatVal(params.restitution, 2);
 				document.getElementById('newTemperature').value = formatVal(params.temperature, 0);
 				document.getElementById('newRotationSpeed').value = formatVal(params.rotationSpeed, 3);
-				document.getElementById('newYoungModulus').value = formatVal(params.youngModulus, 0);
+				document.getElementById('newY_base').value = formatVal(params.youngModulus, 0);
 				document.getElementById('newFriction').value = formatVal(params.friction, 2);
 				
 				if (params.color) {
@@ -392,9 +406,9 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 		});
 
-		const inputIds = ['newMass', 'newRadius', 'newX', 'newY', 'newVX', 'newVY', 'newAX', 'newAY', 
-			'newCharge', 'newMagMoment', 'newRestitution', 'newLifetime', 
-			'newTemperature', 'newRotationSpeed', 'newYoungModulus', 'newFriction'];
+		const inputIds = Object.keys(Schema)
+			.filter(k => Schema[k].type === 'number')
+			.map(k => getInputId(k));
 		
 		inputIds.forEach(id => {
 			const el = document.getElementById(id);
@@ -812,6 +826,28 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	const injHeader = document.querySelector('#injectionSection .section-header');
 	
+	const drawTools = [
+		{ id: 'toggleZoneDrawBtn', mode: 'periodic', text: 'Draw Zone', icon: 'fa-pen-ruler' },
+		{ id: 'toggleViscosityZoneBtn', mode: 'viscosity', text: 'Draw Viscosity', icon: 'fa-water' },
+		{ id: 'toggleFieldZoneToolBtn', mode: 'field', text: 'Draw Field', icon: 'fa-arrow-down' },
+		{ id: 'toggleThermalZoneBtn', mode: 'thermal', text: 'Draw Thermal', icon: 'fa-temperature-high' },
+		{ id: 'toggleBarrierToolBtn', mode: 'barrier', text: 'Draw Barrier', icon: 'fa-road' },
+		{ id: 'toggleBondToolBtn', mode: 'bond', text: 'Link Bodies', icon: 'fa-link' }
+	];
+	
+	const updateDrawToolButtons = (activeMode) => {
+		drawTools.forEach(tool => {
+			const btn = document.getElementById(tool.id);
+			if (btn) {
+				const isActive = tool.mode === activeMode;
+				btn.innerHTML = `<i class="fa-solid ${tool.icon}"></i> ${tool.text} (${isActive ? 'On' : 'Off'})`;
+				btn.classList.toggle('primary', isActive);
+				btn.classList.toggle('secondary', !isActive);
+			}
+		});
+		Render.canvas.style.cursor = activeMode === 'none' ? 'default' : 'crosshair';
+	};
+
 	setupDraggable(panel, header, [toolsPanel]);
 	setupDraggable(toolsPanel, toolsHeader, [panel]);
 	
@@ -992,57 +1028,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	toggleInjBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInjection(); });
 	
-	toggleViscosityZoneBtn.addEventListener('click', () => {
-		if (Render.drawMode === 'viscosity') {
-			Render.drawMode = 'none';
-			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-			toggleViscosityZoneBtn.classList.remove('primary');
-			toggleViscosityZoneBtn.classList.add('secondary');
-			Render.canvas.style.cursor = 'default';
-		} else {
-			Render.drawMode = 'viscosity';
-			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (On)';
-			toggleViscosityZoneBtn.classList.remove('secondary');
-			toggleViscosityZoneBtn.classList.add('primary');
-			
-			if (toggleZoneDrawBtn) {
-				toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-				toggleZoneDrawBtn.classList.remove('primary');
-				toggleZoneDrawBtn.classList.add('secondary');
-			}
-			Render.canvas.style.cursor = 'crosshair';
-		}
-	});
-	
-	toggleZoneDrawBtn.addEventListener('click', () => {
-		if (Render.drawMode === 'periodic') {
-			Render.drawMode = 'none';
-			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-			toggleZoneDrawBtn.classList.remove('primary');
-			toggleZoneDrawBtn.classList.add('secondary');
-			Render.canvas.style.cursor = 'default';
-		} else {
-			Render.drawMode = 'periodic';
-			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (On)';
-			toggleZoneDrawBtn.classList.remove('secondary');
-			toggleZoneDrawBtn.classList.add('primary');
-			Render.canvas.style.cursor = 'crosshair';
-		}
-	});
-
-	playBtn.addEventListener('click', () => {
-		Sim.paused = !Sim.paused;
-		if(Sim.paused) {
-			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
-			playBtn.classList.remove('primary');
-			playBtn.style.color = "#aaa";
-		} else {
-			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
-			playBtn.classList.add('primary');
-			playBtn.style.color = "";
-		}
-	});
-	
 	if (injHeader) injHeader.addEventListener('click', toggleInjection);
 	
 	if (toggleDisplayBtn) {
@@ -1066,224 +1051,43 @@ document.addEventListener('DOMContentLoaded', () => {
 		bodiesHeader.addEventListener('click', toggleBodiesList);
 	}
 	
-	if (toggleZoneDrawBtn) {
-		toggleZoneDrawBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'viscosity') {
-				toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-				toggleViscosityZoneBtn.classList.remove('primary');
-				toggleViscosityZoneBtn.classList.add('secondary');
-			}
+	if (thermoParams) {
+		thermoParams.classList.toggle('hidden-content', !Sim.enableThermodynamics);
+	}
+
+	if (ambientTempInput) {
+		ambientTempInput.value = Sim.T_ambient;
+		ambientTempInput.addEventListener('change', () => {
+			let val = parseFloat(ambientTempInput.value);
+			if (isNaN(val)) val = -1;
+			Sim.T_ambient = val;
 		});
+		addMathParsing(ambientTempInput);
 	}
 	
-	if (toggleBarrierToolBtn) {
-		toggleBarrierToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'barrier') {
-				Render.drawMode = 'none';
-				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-				toggleBarrierToolBtn.classList.remove('primary');
-				toggleBarrierToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'barrier';
-				toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (On)';
-				toggleBarrierToolBtn.classList.remove('secondary');
-				toggleBarrierToolBtn.classList.add('primary');
-				
-				if (toggleBondToolBtn) {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-		
-		if (toggleBondToolBtn) {
-			toggleBondToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'bond') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
+	drawTools.forEach(tool => {
+		const btn = document.getElementById(tool.id);
+		if (btn) {
+			btn.addEventListener('click', () => {
+				const newMode = Render.drawMode === tool.mode ? 'none' : tool.mode;
+				Render.drawMode = newMode;
+				updateDrawToolButtons(newMode);
 			});
 		}
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
+	});
 
-	if (toggleFieldZoneToolBtn) {
-		toggleFieldZoneToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'field') {
-				Render.drawMode = 'none';
-				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-				toggleFieldZoneToolBtn.classList.remove('primary');
-				toggleFieldZoneToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'field';
-				toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (On)';
-				toggleFieldZoneToolBtn.classList.remove('secondary');
-				toggleFieldZoneToolBtn.classList.add('primary');
-				
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				if (toggleBondToolBtn) {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-				if (toggleBarrierToolBtn) {
-					toggleBarrierToolBtn.innerHTML = '<i class="fa-solid fa-road"></i> Draw Barrier (Off)';
-					toggleBarrierToolBtn.classList.remove('primary');
-					toggleBarrierToolBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-
-		// Desactivation croisée pour les autres boutons
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
+	playBtn.addEventListener('click', () => {
+		Sim.paused = !Sim.paused;
+		if(Sim.paused) {
+			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+			playBtn.classList.remove('primary');
+			playBtn.style.color = "#aaa";
+		} else {
+			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
+			playBtn.classList.add('primary');
+			playBtn.style.color = "";
 		}
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleBondToolBtn) {
-			toggleBondToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'bond') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		if (toggleBarrierToolBtn) {
-			toggleBarrierToolBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'barrier') {
-					toggleFieldZoneToolBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)';
-					toggleFieldZoneToolBtn.classList.remove('primary');
-					toggleFieldZoneToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
-
-	if (toggleBondToolBtn) {
-		toggleBondToolBtn.addEventListener('click', () => {
-			if (Render.drawMode === 'bond') {
-				Render.drawMode = 'none';
-				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-				toggleBondToolBtn.classList.remove('primary');
-				toggleBondToolBtn.classList.add('secondary');
-				Render.canvas.style.cursor = 'default';
-			} else {
-				Render.drawMode = 'bond';
-				toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (On)';
-				toggleBondToolBtn.classList.remove('secondary');
-				toggleBondToolBtn.classList.add('primary');
-				
-				if (toggleViscosityZoneBtn) {
-					toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
-					toggleViscosityZoneBtn.classList.remove('primary');
-					toggleViscosityZoneBtn.classList.add('secondary');
-				}
-				if (toggleZoneDrawBtn) {
-					toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
-					toggleZoneDrawBtn.classList.remove('primary');
-					toggleZoneDrawBtn.classList.add('secondary');
-				}
-				
-				Render.canvas.style.cursor = 'crosshair';
-			}
-		});
-		
-		if (toggleViscosityZoneBtn) {
-			toggleViscosityZoneBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'viscosity') {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-			});
-		}
-		
-		if (toggleZoneDrawBtn) {
-			toggleZoneDrawBtn.addEventListener('click', () => {
-				if (Render.drawMode === 'periodic') {
-					toggleBondToolBtn.innerHTML = '<i class="fa-solid fa-link"></i> Link Bodies (Off)';
-					toggleBondToolBtn.classList.remove('primary');
-					toggleBondToolBtn.classList.add('secondary');
-				}
-			});
-		}
-	}
-
-	if (bondToolBtn) {
-		const presetContainer = document.createElement('div');
-		presetContainer.style.marginBottom = '8px';
-		presetContainer.innerHTML = `
-			<div class="control-row" style="margin-bottom:4px;"><label>Bond Preset</label></div>
-			<select id="bondPresetSelect" style="width:100%; padding:6px; background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:3px; outline:none; font-family:var(--font-ui); font-size:11px;">
-				<option value="spring">Spring (Default)</option>
-				<option value="rope">Rope (Tension only)</option>
-				<option value="rod">Rigid Rod</option>
-				<option value="chain">Chain (Non-linear)</option>
-				<option value="muscle">Muscle (Active)</option>
-				<option value="weak">Weak Link (Breakable)</option>
-			</select>
-		`;
-		
-		bondToolBtn.parentNode.insertBefore(presetContainer, bondToolBtn.nextSibling.nextSibling); // Insert after divider-sub if present
-	}
+	});
 	
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
@@ -2006,6 +1810,61 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
+	function refreshThermalZoneList() {
+		refreshGenericZoneList({
+			listContainer: thermalZonesListContainer,
+			collapsible: document.getElementById('thermalZonesCollapsible'),
+			countSpan: document.getElementById('thermalZoneListCount'),
+			zones: Sim.thermalZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeThermalZone.bind(Sim),
+			refreshFunc: refreshThermalZoneList,
+			cardConfig: {
+				defaultColor: '#e74c3c',
+				activeId: Render.selectedThermalZoneId,
+				setActiveId: (id) => { Render.selectedThermalZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Temperature (K)</label>
+							<input type="number" class="inp-temperature" value="${zone.temperature.toFixed(0)}">
+						</div>
+						<div class="mini-input-group">
+							<label>Heat Transfer</label>
+							<input type="number" class="inp-htc" value="${zone.heatTransferCoefficient.toFixed(2)}" step="0.01">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const tempInp = div.querySelector('.inp-temperature');
+					const htcInp = div.querySelector('.inp-htc');
+					
+					const handler = () => {
+						let tempVal = parseFloat(tempInp.value);
+						if (isNaN(tempVal) || tempVal < 0) {
+							tempVal = 0;
+							tempInp.value = tempVal.toFixed(0);
+						}
+						zone.temperature = tempVal;
+
+						zone.heatTransferCoefficient = parseFloat(htcInp.value) || 0;
+					};
+					
+					tempInp.addEventListener('change', handler);
+					tempInp.addEventListener('input', handler);
+					htcInp.addEventListener('change', handler);
+					htcInp.addEventListener('input', handler);
+					
+					setupInteractiveLabel(tempInp.previousElementSibling, tempInp);
+					setupInteractiveLabel(htcInp.previousElementSibling, htcInp);
+				},
+			}
+		});
+	}
+	
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
 		refreshBodyList();
@@ -2022,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		refreshBodyList();
 		refreshZoneList();
 		refreshViscosityZoneList();
+		refreshThermalZoneList();
 		refreshElasticBondList();
 		refreshSolidBarrierList();
 		refreshFieldZoneList();
@@ -2075,6 +1935,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	window.App.ui.refreshZones = refreshZoneList;
 	
+	window.App.ui.refreshThermalZones = refreshThermalZoneList;
+	
 	window.App.ui.getBondConfig = function() {
 		const select = document.getElementById('bondPresetSelect');
 		if (select && bondPresets[select.value]) {
@@ -2089,6 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	setupCollapsibleList('barriersListHeader', 'barriersListContainer', 'toggleBarriersListBtn');
 	setupCollapsibleList('fieldDefHeader', 'fieldDefContent', 'toggleFieldDefBtn');
 	setupCollapsibleList('fieldDefListHeader', 'fieldsListContainer', 'toggleFieldDefListBtn');
+	setupCollapsibleList('thermalZonesListHeader', 'thermalZonesListContainer', 'toggleThermalZonesListBtn');
 	
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
@@ -2112,6 +1975,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindToggle('elecBox', Sim, 'enableElectricity');
 	bindToggle('magBox', Sim, 'enableMagnetism');
 	bindToggle('colBox', Sim, 'enableCollision');
+
+	bindToggle('thermoBox', Sim, 'enableThermodynamics', (checked) => {
+		if (thermoParams) thermoParams.classList.toggle('hidden-content', !checked);
+	});
 	
 	bindToggle('showGravFieldBox', Render, 'showGravField');
 	bindToggle('showElecFieldBox', Render, 'showElecField');

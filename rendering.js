@@ -45,13 +45,11 @@ const Rendering = {
 	drawMode: 'none', 
 	selectedZoneId: null,
 	selectedViscosityZoneId: null,
-	tempZoneStart: null,
-	tempZoneCurrent: null,
-	
-	selectedZoneId: null,
-	selectedViscosityZoneId: null,
+	selectedThermalZoneId: null,
+	selectedFieldZoneId: null,
 	selectedBondId: null,
 	selectedBarrierId: null,
+	
 	tempZoneStart: null,
 	tempZoneCurrent: null,
 	tempBondStart: null,
@@ -74,6 +72,7 @@ const Rendering = {
 		this.lastFrameTime = performance.now();
 		this.frameCount = 0;
 		this.lastFpsUpdateTime = 0;
+		this.timeAccumulator = 0;
 		
 		window.addEventListener('resize', () => this.resize());
 		this.resize();
@@ -127,7 +126,7 @@ const Rendering = {
 			const m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
 			
-			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') {
+			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') {
 				this.tempZoneStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 				this.isDragging = true;
@@ -190,6 +189,7 @@ const Rendering = {
 					this.selectedZoneId = null;
 					this.selectedViscosityZoneId = null;
 					this.selectedFieldZoneId = null;
+					this.selectedThermalZoneId = null;
 					this.selectedBondId = null;
 					this.selectedBarrierId = null;
 					if (window.App.ui) {
@@ -197,6 +197,7 @@ const Rendering = {
 						if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 						if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 						if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
+						if (window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
 						if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
 						if (window.App.ui.refreshSolidBarrierList) window.App.ui.refreshSolidBarrierList();
 					}
@@ -213,6 +214,7 @@ const Rendering = {
 				this.selectedZoneId = null;
 				this.selectedViscosityZoneId = null;
 				this.selectedFieldZoneId = null;
+				this.selectedThermalZoneId = null;
 				this.selectedBondId = null;
 				this.selectedBarrierId = null;
 				
@@ -221,6 +223,7 @@ const Rendering = {
 					if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 					if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 					if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
+					if (window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
 					if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
 					if (window.App.ui.refreshSolidBarrierList) window.App.ui.refreshSolidBarrierList();
 				}
@@ -264,7 +267,7 @@ const Rendering = {
 			
 			if (!this.isDragging) return;
 
-			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart) {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 			} else if (this.drawMode === 'barrier' && this.tempBarrierStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
@@ -308,7 +311,7 @@ const Rendering = {
 
 		const handleEnd = (clientX, clientY) => {
 			this.showCoords = false;
-			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart && this.tempZoneCurrent) {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart && this.tempZoneCurrent) {
 				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
 				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
 				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
@@ -324,6 +327,9 @@ const Rendering = {
 					} else if (this.drawMode === 'field') {
 						window.App.sim.addFieldZone(x, y, w, h);
 						if (window.App.ui && window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
+					} else if (this.drawMode === 'thermal') {
+						window.App.sim.addThermalZone(x, y, w, h);
+						if (window.App.ui && window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
 					}
 				}
 				this.tempZoneStart = null;
@@ -467,7 +473,7 @@ const Rendering = {
 			let zoomCenterX = centerX;
 			let zoomCenterY = centerY;
 
-			if (this.enableTracking || this.trackedBodyIdx !== -1) {
+			if (this.enableTracking || this.trackedBodyIdx > -1) {
 				zoomCenterX = this.width / 2;
 				zoomCenterY = this.height / 2;
 			}
@@ -483,7 +489,7 @@ const Rendering = {
 	updateAutoCam: function(bodies) {
 		if (!bodies.length) return;
 
-		let doTracking = this.trackedBodyIdx !== -1 || this.enableTracking;
+		let doTracking = this.trackedBodyIdx > -1 || this.enableTracking;
 		
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		let totalMass = 0;
@@ -506,7 +512,7 @@ const Rendering = {
 		if (doTracking) {
 			let targetX, targetY;
 			
-			if (this.trackedBodyIdx !== -1 && bodies[this.trackedBodyIdx]) {
+			if (this.trackedBodyIdx > -1 && bodies[this.trackedBodyIdx]) {
 				const trackedBody = bodies[this.trackedBodyIdx];
 				targetX = -trackedBody.x * this.zoom;
 				targetY = -trackedBody.y * this.zoom;
@@ -1006,7 +1012,55 @@ const Rendering = {
 		}
 	},
 	
-	drawMouseCoordinates: function() {
+	drawThermalZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedThermalZoneId);
+			const color = z.color || '#e74c3c';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			
+			if (isSelected) {
+				this.ctx.lineWidth = 3 / this.zoom;
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+				this.ctx.lineWidth = 1 / this.zoom;
+			} else {
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+			}
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			this.ctx.fillRect(z.x, z.y, z.width, z.height);
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.font = `${10 / this.zoom}px sans-serif`;
+			this.ctx.fillStyle = color;
+			this.ctx.textAlign = 'left';
+			this.ctx.fillText(z.name + (z.enabled ? ` (${z.temperature}K)` : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'thermal' && this.tempZoneStart && this.tempZoneCurrent) {
+			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			
+			this.ctx.strokeStyle = '#e74c3c';
+			this.ctx.strokeRect(x, y, w, h);
+			this.ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
+			this.ctx.fillRect(x, y, w, h);
+		}
+	},
+	
+	drawInfos: function() {
 		if (!this.showCoords) return;
 
 		let text = `${this.currentWorldX.toFixed(1)}, ${this.currentWorldY.toFixed(1)}`;
@@ -1017,7 +1071,7 @@ const Rendering = {
 				const speed = Math.sqrt(b.vx**2 + b.vy**2);
 				text += `\nSpeed: ${speed.toFixed(2)}`;
 			}
-		} else if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart && this.tempZoneCurrent) {
+		} else if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart && this.tempZoneCurrent) {
 			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
 			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
 			text += `\nSize: ${w.toFixed(0)} x ${h.toFixed(0)}`;
@@ -1350,8 +1404,6 @@ const Rendering = {
 	},
 	
 	draw: function() {
-		window.App.sim.update();
-
 		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyIdx !== -1) {
 			this.updateAutoCam(window.App.sim.bodies);
 		}
@@ -1371,6 +1423,7 @@ const Rendering = {
 		this.drawGrid();
 		this.drawPeriodicZones(window.App.sim.periodicZones);
 		this.drawViscosityZones(window.App.sim.viscosityZones);
+		this.drawThermalZones(window.App.sim.thermalZones);
 		this.drawFieldZones(window.App.sim.fieldZones);
 		this.drawSolidBarriers(window.App.sim.solidBarriers);
 		this.drawElasticBonds(window.App.sim.elasticBonds);
@@ -1444,7 +1497,7 @@ const Rendering = {
 		this.ctx.restore();
 		this.drawRulers();
 		this.drawOffScreenIndicators();
-		this.drawMouseCoordinates();
+		this.drawInfos();
 		this.drawPerformanceIndicator();
 	},
 	
@@ -1479,11 +1532,27 @@ const Rendering = {
 
 	loop: function() {
 		const now = performance.now();
+		const deltaTime = now - this.lastFrameTime;
+		this.lastFrameTime = now;
+
 		this.frameCount++;
 		if (now - this.lastFpsUpdateTime > 1000) {
 			this.fps = this.frameCount;
 			this.frameCount = 0;
 			this.lastFpsUpdateTime = now;
+		}
+
+		const sim = window.App.sim;
+		if (!sim.paused) {
+			const maxFrameTime = 250;
+			this.timeAccumulator += Math.min(deltaTime, maxFrameTime);
+			
+			const physicsTimeStep = 1000 / 60;
+
+			while (this.timeAccumulator >= physicsTimeStep) {
+				sim.update();
+				this.timeAccumulator -= physicsTimeStep;
+			}
 		}
 		
 		this.draw();

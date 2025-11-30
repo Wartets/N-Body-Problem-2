@@ -237,7 +237,7 @@ canvas {
 	font-size: 9px;
 	color: var(--text-secondary);
 	margin-bottom: 2px;
-	text-transform: uppercase;
+	/* text-transform: uppercase; */
 }
 input[type="number"], input[type="text"] {
 	background: var(--input-bg);

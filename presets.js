@@ -3,7 +3,7 @@
 	const rndInt = (min, max) => Math.floor(rnd(min, max));
 	const logRad = (m) => Math.max(2, Math.log(m) * 2);
 
-	window.App.objectPresets = {
+		window.App.objectPresets = {
 		"Star: Red Giant": (S) => {
 			const m = rnd(60000, 90000) / (S.G * 2);
 			return {
@@ -11,11 +11,17 @@
 				radius: logRad(m) * 3,
 				charge: rnd(-5, 5),
 				magMoment: rnd(50, 150),
-				restitution: 0.2,
-				temperature: rndInt(3000, 4500),
-				youngModulus: rnd(100, 500),
 				rotationSpeed: rnd(0.001, 0.005),
 				friction: 0.5,
+				temperature: rndInt(3000, 4500),
+				specificHeat: 20000,
+				absorptionFactor: 0.9,
+				criticalTemp: 100000,
+				transitionFactor: 0.01,
+				e_base: 0.2,
+				e_min: 0.1,
+				Y_base: 100,
+				Y_min: 10,
 				color: `hsl(${rndInt(0, 20)}, 100%, 60%)`
 			};
 		},
@@ -26,11 +32,17 @@
 				radius: logRad(m),
 				charge: 0,
 				magMoment: rnd(10, 50),
-				restitution: 0.5,
-				temperature: rndInt(5500, 6000),
-				youngModulus: rnd(1000, 2000),
 				rotationSpeed: rnd(0.01, 0.03),
 				friction: 0.5,
+				temperature: rndInt(5500, 6000),
+				specificHeat: 15000,
+				absorptionFactor: 0.9,
+				criticalTemp: 200000,
+				transitionFactor: 0.01,
+				e_base: 0.5,
+				e_min: 0.1,
+				Y_base: 1000,
+				Y_min: 10,
 				color: `hsl(${rndInt(45, 60)}, 100%, 70%)`
 			};
 		},
@@ -41,11 +53,17 @@
 				radius: logRad(m) * 0.5,
 				charge: rnd(0, 10),
 				magMoment: rnd(100, 300),
-				restitution: 0.9,
-				temperature: rndInt(15000, 30000),
-				youngModulus: rnd(50000, 80000),
 				rotationSpeed: rnd(0.1, 0.5),
 				friction: 0.4,
+				temperature: rndInt(15000, 30000),
+				specificHeat: 1000,
+				absorptionFactor: 0.7,
+				criticalTemp: 500000,
+				transitionFactor: 0.001,
+				e_base: 0.9,
+				e_min: 0.5,
+				Y_base: 50000,
+				Y_min: 10000,
 				color: `hsl(${rndInt(190, 220)}, 50%, 90%)`
 			};
 		},
@@ -56,11 +74,17 @@
 				radius: 4,
 				charge: rnd(50, 100) / Math.sqrt(S.Ke),
 				magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
-				restitution: 0.95,
-				temperature: rndInt(500000, 1000000),
-				youngModulus: 200000,
 				rotationSpeed: rnd(2.0, 5.0),
 				friction: 0.1,
+				temperature: rndInt(500000, 1000000),
+				specificHeat: 100,
+				absorptionFactor: 0.8,
+				criticalTemp: 1e9,
+				transitionFactor: 0.001,
+				e_base: 0.95,
+				e_min: 0.9,
+				Y_base: 200000,
+				Y_min: 150000,
 				color: '#ffffff'
 			};
 		},
@@ -71,11 +95,17 @@
 				radius: 2,
 				charge: 0,
 				magMoment: 0,
-				restitution: 0,
-				temperature: 0,
-				youngModulus: 1000000,
 				rotationSpeed: rnd(1.0, 10.0),
 				friction: 0,
+				temperature: 0,
+				specificHeat: 1000,
+				absorptionFactor: 1.0,
+				criticalTemp: 1e12,
+				transitionFactor: 0.001,
+				e_base: 0,
+				e_min: 0,
+				Y_base: 1000000,
+				Y_min: 1000000,
 				color: '#000000'
 			};
 		},
@@ -86,11 +116,17 @@
 				radius: logRad(m) * 1.2,
 				charge: rnd(-2, 2),
 				magMoment: rnd(20, 80),
-				restitution: 0.7,
-				temperature: rndInt(100, 160),
-				youngModulus: rnd(100, 300),
 				rotationSpeed: rnd(0.05, 0.15),
 				friction: 0.2,
+				temperature: rndInt(100, 160),
+				specificHeat: 14000,
+				absorptionFactor: 0.5,
+				criticalTemp: 100,
+				transitionFactor: 0.1,
+				e_base: 0.7,
+				e_min: 0.2,
+				Y_base: 100,
+				Y_min: 0,
 				color: `hsl(${rndInt(25, 45)}, 80%, ${rndInt(50, 70)}%)`
 			};
 		},
@@ -101,11 +137,17 @@
 				radius: logRad(m),
 				charge: 0,
 				magMoment: rnd(2, 10),
-				restitution: 0.5,
-				temperature: rndInt(250, 320),
-				youngModulus: rnd(3000, 6000),
 				rotationSpeed: rnd(0.1, 0.3),
 				friction: 0.8,
+				temperature: rndInt(250, 320),
+				specificHeat: 800,
+				absorptionFactor: 0.7,
+				criticalTemp: 1500,
+				transitionFactor: 0.01,
+				e_base: 0.5,
+				e_min: 0.1,
+				Y_base: 3000,
+				Y_min: 100,
 				color: `hsl(${rndInt(100, 140)}, 60%, 50%)`
 			};
 		},
@@ -116,11 +158,17 @@
 				radius: logRad(m),
 				charge: rnd(0, 5),
 				magMoment: rnd(1, 5),
-				restitution: 0.3,
-				temperature: rndInt(800, 1500),
-				youngModulus: rnd(1000, 2000),
 				rotationSpeed: rnd(0.05, 0.1),
 				friction: 0.6,
+				temperature: rndInt(800, 1500),
+				specificHeat: 1000,
+				absorptionFactor: 0.8,
+				criticalTemp: 1500,
+				transitionFactor: 0.01,
+				e_base: 0.3,
+				e_min: 0.1,
+				Y_base: 1000,
+				Y_min: 100,
 				color: `hsl(${rndInt(0, 20)}, 80%, 40%)`
 			};
 		},
@@ -129,11 +177,17 @@
 			radius: 2,
 			charge: -20 / Math.sqrt(S.Ke),
 			magMoment: 5 / Math.sqrt(S.Km),
-			restitution: 1.0,
-			temperature: 0,
-			youngModulus: 0,
 			rotationSpeed: 8.0,
 			friction: 0.0,
+			temperature: 0,
+			specificHeat: 1,
+			absorptionFactor: 0.5,
+			criticalTemp: 1e9,
+			transitionFactor: 0.01,
+			e_base: 1.0,
+			e_min: 1.0,
+			Y_base: 0,
+			Y_min: 0,
 			color: '#ffff00'
 		}),
 		"Particle: Proton": (S) => ({
@@ -141,11 +195,17 @@
 			radius: 4,
 			charge: 20 / Math.sqrt(S.Ke),
 			magMoment: 2 / Math.sqrt(S.Km),
-			restitution: 1.0,
-			temperature: 0,
-			youngModulus: 0,
 			rotationSpeed: 1.0,
 			friction: 0.1,
+			temperature: 0,
+			specificHeat: 1,
+			absorptionFactor: 0.5,
+			criticalTemp: 1e9,
+			transitionFactor: 0.01,
+			e_base: 1.0,
+			e_min: 1.0,
+			Y_base: 0,
+			Y_min: 0,
 			color: '#ff3333'
 		}),
 		"Particle: Neutron": (S) => ({
@@ -153,11 +213,17 @@
 			radius: 4,
 			charge: 0,
 			magMoment: -3 / Math.sqrt(S.Km),
-			restitution: 1.0,
-			temperature: 0,
-			youngModulus: 0,
 			rotationSpeed: 1.0,
 			friction: 0.1,
+			temperature: 0,
+			specificHeat: 1,
+			absorptionFactor: 0.5,
+			criticalTemp: 1e9,
+			transitionFactor: 0.01,
+			e_base: 1.0,
+			e_min: 1.0,
+			Y_base: 0,
+			Y_min: 0,
 			color: '#aaaaaa'
 		}),
 		"Ball: Billiard": (S) => ({
@@ -165,11 +231,17 @@
 			radius: 5,
 			charge: 0,
 			magMoment: 0,
-			restitution: 0.98,
-			temperature: 20,
-			youngModulus: 15000,
 			rotationSpeed: 0,
 			friction: 0.2,
+			temperature: 293,
+			specificHeat: 1500,
+			absorptionFactor: 0.2,
+			criticalTemp: 450,
+			transitionFactor: 0.05,
+			e_base: 0.98,
+			e_min: 0.2,
+			Y_base: 15000,
+			Y_min: 100,
 			color: `hsl(${rndInt(0, 360)}, 80%, 50%)`
 		}),
 		"Ball: Pétanque": (S) => ({
@@ -177,11 +249,17 @@
 			radius: 5,
 			charge: 0,
 			magMoment: rnd(0, 0.5),
-			restitution: 0.25,
-			temperature: 25,
-			youngModulus: 50000,
 			rotationSpeed: 0,
 			friction: 0.9,
+			temperature: 293,
+			specificHeat: 450,
+			absorptionFactor: 0.4,
+			criticalTemp: 1800,
+			transitionFactor: 0.005,
+			e_base: 0.25,
+			e_min: 0.1,
+			Y_base: 50000,
+			Y_min: 500,
 			color: '#71706e'
 		}),
 		"Ball: Tennis": (S) => ({
@@ -189,11 +267,17 @@
 			radius: 4,
 			charge: rnd(0, 2),
 			magMoment: 0,
-			restitution: 0.85,
-			temperature: 20,
-			youngModulus: 2000,
 			rotationSpeed: 0,
 			friction: 0.7,
+			temperature: 293,
+			specificHeat: 2000,
+			absorptionFactor: 0.6,
+			criticalTemp: 450,
+			transitionFactor: 0.02,
+			e_base: 0.85,
+			e_min: 0.1,
+			Y_base: 2000,
+			Y_min: 50,
 			color: '#ccff00'
 		}),
 		"Object: Soap Bubble": (S) => ({
@@ -201,11 +285,17 @@
 			radius: 10,
 			charge: rnd(1, 3),
 			magMoment: 0,
-			restitution: 0.8,
-			temperature: 15,
-			youngModulus: 10,
 			rotationSpeed: rnd(0.1, 0.5),
 			friction: 0.05,
+			temperature: 288,
+			specificHeat: 4200,
+			absorptionFactor: 0.1,
+			criticalTemp: 373,
+			transitionFactor: 0.1,
+			e_base: 0.8,
+			e_min: 0.05,
+			Y_base: 10,
+			Y_min: 0,
 			color: 'rgba(200, 240, 255, 0.6)'
 		}),
 		"Object: Magnet": (S) => ({
@@ -213,11 +303,17 @@
 			radius: 6,
 			charge: 0,
 			magMoment: rnd(80, 120) / Math.sqrt(S.Km),
-			restitution: 0.5,
-			temperature: 20,
-			youngModulus: 10000,
 			rotationSpeed: 0,
 			friction: 0.5,
+			temperature: 293,
+			specificHeat: 450,
+			absorptionFactor: 0.5,
+			criticalTemp: 1043,
+			transitionFactor: 0.01,
+			e_base: 0.5,
+			e_min: 0.1,
+			Y_base: 10000,
+			Y_min: 200,
 			color: '#ff0000'
 		})
 	};
@@ -237,8 +333,10 @@
 				const starRadius = Math.log(starMass) * 2;
 				sim.addBody({
 					mass: starMass, x: 0, y: 0, vx: 0, vy: 0, radius: starRadius, 
-					color: '#ffeeb0', name: 'Sun', restitution: 1, temperature: 6000, 
-					rotationSpeed: 0.02, friction: 0.5
+					color: '#ffeeb0', name: 'Sun', friction: 0.5, rotationSpeed: 0.02,
+					temperature: 6000, e_base: 1.0, Y_base: 5000, specificHeat: 10000, 
+					absorptionFactor: 0.9, criticalTemp: 1000000, transitionFactor: 0.001, 
+					e_min: 0.2, Y_min: 100
 				});
 
 				const count = 8;
@@ -266,7 +364,14 @@
 					else color = `hsl(${Math.random() * 40}, 30%, 60%)`;
 
 					const name = `Planet ${i+1}`;
-					sim.addBody({ mass, x, y, vx, vy, radius, color, name });
+					const planetProps = isGasGiant ? {
+						temperature: 150, e_base: 0.4, Y_base: 200, specificHeat: 3000,
+						absorptionFactor: 0.8, criticalTemp: 5000, e_min: 0.1, Y_min: 10
+					} : {
+						temperature: 290, e_base: 0.6, Y_base: 8000, specificHeat: 800,
+						absorptionFactor: 0.4, criticalTemp: 2500, e_min: 0.1, Y_min: 100
+					};
+					sim.addBody({ mass, x, y, vx, vy, radius, color, name, ...planetProps });
 
 					if (mass > 60) {
 						const moons = Math.floor(Math.random() * 2) + 1;
@@ -286,7 +391,9 @@
 							const moonRad = Math.max(2, Math.log(moonMass) * 2);
 							sim.addBody({ 
 								mass: moonMass, x: mx, y: my, vx: mvx, vy: mvy, 
-								radius: moonRad, color: '#d1d1d1', name: `${name}-m${m+1}` 
+								radius: moonRad, color: '#d1d1d1', name: `${name}-m${m+1}`,
+								temperature: 120, e_base: 0.7, Y_base: 6000, specificHeat: 700,
+								absorptionFactor: 0.5, criticalTemp: 1500, e_min: 0.2, Y_min: 80
 							});
 						}
 					}
@@ -307,16 +414,13 @@
 				const dist = 400;
 				const v = Math.sqrt((sim.G * mass) / (4 * dist)); 
 
-				sim.addBody({
-					mass: mass, x: -dist, y: 0, vx: 0, vy: v, radius: radius, 
-					color: '#ffcc00', name: 'Star A', restitution: 1, temperature: 5000, 
-					rotationSpeed: 0.01, friction: 0.5
-				});
-				sim.addBody({
-					mass: mass, x: dist, y: 0, vx: 0, vy: -v, radius: radius, 
-					color: '#ffaa00', name: 'Star B', restitution: 1, temperature: 5000, 
-					rotationSpeed: 0.01, friction: 0.5
-				});
+				const starProps = {
+					friction: 0.5, rotationSpeed: 0.01, temperature: 5000, e_base: 1.0, 
+					Y_base: 4000, specificHeat: 8000, absorptionFactor: 0.9, 
+					criticalTemp: 800000, transitionFactor: 0.001, e_min: 0.2, Y_min: 100
+				};
+				sim.addBody({ mass, x: -dist, y: 0, vx: 0, vy: v, radius, color: '#ffcc00', name: 'Star A', ...starProps });
+				sim.addBody({ mass, x: dist, y: 0, vx: 0, vy: -v, radius, color: '#ffaa00', name: 'Star B', ...starProps });
 				
 				for (let i = 0; i < 40; i++) {
 					const d = dist * 2 + Math.random() * 500;
@@ -332,8 +436,9 @@
 					const vy = Math.cos(angle) * speed;
 					
 					sim.addBody({ 
-						mass: asteroidMass, x: x, y: y, vx: vx, vy: vy, 
-						radius: astRad, color: '#888', name: `Asteroid ${i}` 
+						mass: asteroidMass, x, y, vx, vy, radius: astRad, color: '#888', name: `Asteroid ${i}`,
+						temperature: 180, e_base: 0.7, Y_base: 5000, specificHeat: 600,
+						absorptionFactor: 0.6, criticalTemp: 1800, e_min: 0.2, Y_min: 50
 					});
 				}
 			}
@@ -354,7 +459,11 @@
 					const mass = Math.random() * 40 + 5;
 					const radius = Math.max(2, Math.log(mass) * 2);
 					const color = `hsl(${Math.random() * 360}, 60%, 60%)`;
-					sim.addBody({ mass, x, y, vx, vy, radius, color, name: `Body ${i}` });
+					sim.addBody({
+						mass, x, y, vx, vy, radius, color, name: `Body ${i}`,
+						temperature: 200, e_base: 0.5, Y_base: 1000, specificHeat: 700,
+						absorptionFactor: 0.5, criticalTemp: 1500, e_min: 0.1, Y_min: 20
+					});
 				}
 			}
 		},
@@ -370,7 +479,9 @@
 					const coreRad = Math.log(coreMass) * 2;
 					sim.addBody({
 						mass: coreMass, x: cx, y: cy, vx: cvx, vy: cvy, radius: coreRad, 
-						color: '#fff', name: 'Core', restitution: 0.5, friction: 0.5
+						color: '#fff', name: 'Core', friction: 0.5,
+						temperature: 8000, e_base: 0.5, Y_base: 20000, specificHeat: 12000,
+						absorptionFactor: 0.95, criticalTemp: 2000000, e_min: 0.1, Y_min: 500
 					});
 					
 					for(let i=0; i<numStars; i++) {
@@ -388,7 +499,9 @@
 						const starRad = Math.max(2, Math.log(starMass) * 2);
 						sim.addBody({
 							mass: starMass, x: x, y: y, vx: vx, vy: vy, radius: starRad, 
-							color: `hsl(${colorBase + Math.random()*40}, 70%, 70%)`, name: 'Star'
+							color: `hsl(${colorBase + Math.random()*40}, 70%, 70%)`, name: 'Star',
+							temperature: 5500, e_base: 0.8, Y_base: 3000, specificHeat: 5000,
+							absorptionFactor: 0.9, criticalTemp: 1000000, e_min: 0.2, Y_min: 100
 						});
 					}
 				};
@@ -416,16 +529,12 @@
 					const m = 20 + Math.random() * 30;
 					const r = Math.max(2, Math.log(m) * 2);
 					sim.addBody({
-						mass: m, 
-						x: -250 + Math.random() * 500, 
-						y: -250 + Math.random() * 100, 
-						vx: (Math.random() - 0.5) * 0.1, 
-						vy: (Math.random() - 0.5) * 0.1, 
-						radius: r,
-						color: `hsl(${Math.random() * 360}, 70%, 60%)`, 
-						name: `Ball ${i}`,
-						restitution: 0.9, 
-						friction: 0.5
+						mass: m, x: -250 + Math.random() * 500, y: -250 + Math.random() * 100, 
+						vx: (Math.random() - 0.5) * 0.1, vy: (Math.random() - 0.5) * 0.1, 
+						radius: r, color: `hsl(${Math.random() * 360}, 70%, 60%)`, name: `Ball ${i}`,
+						friction: 0.5, temperature: 293, e_base: 0.9, Y_base: 15000, 
+						specificHeat: 450, absorptionFactor: 0.1, criticalTemp: 1600, 
+						transitionFactor: 0.01, e_min: 0.2, Y_min: 100
 					});
 				}
 			}
@@ -452,7 +561,11 @@
 						const color = fixed ? '#555' : '#3498db';
 						const mass = fixed ? -1 : 30;
 						
-						sim.addBody({ mass, x, y, radius: 5, color, name: `Node ${r}-${c}` });
+						sim.addBody({
+							mass, x, y, radius: 5, color, name: `Node ${r}-${c}`,
+							temperature: 293, e_base: 0.6, Y_base: 10000, specificHeat: 500,
+							absorptionFactor: 0.2, criticalTemp: 1700, e_min: 0.1, Y_min: 100
+						});
 					}
 				}
 				
@@ -482,7 +595,7 @@
 				
 				sim.addBody({
 					mass: 20000, x: 0, y: 0, radius: 15, color: '#e74c3c', name: 'Proton',
-					charge: 50, restitution: 1, friction: 0.5
+					charge: 50, friction: 0.5, temperature: 10000, e_base: 1.0, Y_base: 0
 				});
 
 				const orbitR = 200;
@@ -494,7 +607,7 @@
 
 				sim.addBody({
 					mass: electronMass, x: orbitR, y: 0, vy: velocity, radius: 5, color: '#3498db', name: 'Electron',
-					charge: electronCharge, restitution: 1, friction: 0.1
+					charge: electronCharge, friction: 0.1, temperature: 100, e_base: 1.0, Y_base: 0
 				});
 			}
 		},
@@ -510,13 +623,9 @@
 				
 				for(let i=0; i<50; i++) {
 					sim.addBody({
-						mass: 5, 
-						x: -500 - Math.random() * 200, 
-						y: (Math.random() - 0.5) * 400, 
-						vx: 15 + Math.random() * 5, 
-						radius: 3,
-						color: '#2ecc71', 
-						name: `Particle ${i}`
+						mass: 5, x: -500 - Math.random() * 200, y: (Math.random() - 0.5) * 400, 
+						vx: 15 + Math.random() * 5, radius: 3, color: '#2ecc71', name: `Particle ${i}`,
+						temperature: 293, e_base: 0.8, Y_base: 100
 					});
 				}
 			}
@@ -534,16 +643,11 @@
 				
 				for(let i=0; i<80; i++) {
 					sim.addBody({
-						mass: 5, 
-						x: (Math.random() - 0.5) * (w - 20), 
-						y: (Math.random() - 0.5) * (h - 20), 
-						vx: (Math.random() - 0.5) * 8, 
-						vy: (Math.random() - 0.5) * 8, 
-						radius: 5,
-						color: `hsl(${Math.random() * 60 + 200}, 80%, 60%)`, 
-						name: `Mol ${i}`,
-						restitution: 0.2, 
-						friction: 0.1
+						mass: 5, x: (Math.random() - 0.5) * (w - 20), y: (Math.random() - 0.5) * (h - 20), 
+						vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, 
+						radius: 5, color: `hsl(${Math.random() * 60 + 200}, 80%, 60%)`, name: `Mol ${i}`,
+						friction: 0.1, temperature: 350, e_base: 0.2, Y_base: 0,
+						specificHeat: 2000, absorptionFactor: 0.9, e_min: 0.1, Y_min: 0
 					});
 				}
 			}
@@ -558,7 +662,7 @@
 				
 				sim.addBody({
 					mass: 5000, x: 0, y: 0, radius: 20, color: '#f1c40f', name: 'Core +',
-					charge: 200, restitution: 1, friction: 0.5
+					charge: 200, friction: 0.5, temperature: 500, e_base: 1.0, Y_base: 10000
 				});
 				
 				const count = 12;
@@ -567,34 +671,19 @@
 				for(let i=0; i<count; i++) {
 					const angle = (i / count) * Math.PI * 2;
 					sim.addBody({
-						mass: 1000, 
-						x: Math.cos(angle) * r, 
-						y: Math.sin(angle) * r, 
-						vx: Math.cos(angle) * v, 
-						vy: Math.sin(angle) * v, 
-						radius: 10,
-						color: '#e74c3c', 
-						name: `Magnet ${i}`, 
-						charge: -200, 
-						magMoment: 200, 
-						restitution: 1, 
-						friction: 0.5
+						mass: 1000, x: Math.cos(angle) * r, y: Math.sin(angle) * r, 
+						vx: Math.cos(angle) * v, vy: Math.sin(angle) * v, radius: 10,
+						color: '#e74c3c', name: `Magnet ${i}`, charge: -200, magMoment: 200, 
+						friction: 0.5, temperature: 320, e_base: 1.0, Y_base: 20000
 					});
 				}
 				
 				for(let i=0; i<20; i++) {
 					sim.addBody({
-						mass: 10, 
-						x: (Math.random() - 0.5) * 100, 
-						y: (Math.random() - 0.5) * 100, 
-						vx: (Math.random() - 0.5) * 15, 
-						vy: (Math.random() - 0.5) * 15, 
-						radius: 3,
-						color: '#3498db', 
-						name: `Electron ${i}`, 
-						charge: -5, 
-						restitution: 1, 
-						friction: 0.1
+						mass: 10, x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, 
+						vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, 
+						radius: 3, color: '#3498db', name: `Electron ${i}`, charge: -5,
+						friction: 0.1, temperature: 100, e_base: 1.0, Y_base: 0
 					});
 				}
 			}
@@ -629,17 +718,15 @@
 					}
 					
 					sim.addBody({
-						mass: 5, x: bx, y: by, vx: vx, radius: radius, 
-						color: '#ccc', name: `Ball ${i}`, restitution: 1.0, 
-						youngModulus: 20000, friction: 0.1
+						mass: 5, x: bx, y: by, vx: vx, radius: radius, color: '#ccc', name: `Ball ${i}`, 
+						friction: 0.1, e_base: 1.0, Y_base: 20000, temperature: 293,
+						specificHeat: 450, absorptionFactor: 0.01, criticalTemp: 1600,
+						e_min: 0.8, Y_min: 18000
 					});
 					
 					sim.addElasticBond(i*2, i*2+1, {
-						type: 'chain',
-						stiffness: 100,
-						damping: 5000,
-						length: stringLen,
-						color: '#fff'
+						type: 'chain', stiffness: 100, damping: 5000,
+						length: stringLen, color: '#fff'
 					});
 				}
 				sim.addFieldZone(-600, -300, 1200, 700, 0, 1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
@@ -664,9 +751,10 @@
 				for(let r=0; r<rows; r++) {
 					for(let c=0; c<cols; c++) {
 						sim.addBody({
-							mass: 20, x: startX + c*spacing, y: startY + r*spacing, 
-							radius: 8, color: '#e74c3c', name: 'Node', 
-							restitution: 0.5, friction: 0.5
+							mass: 20, x: startX + c*spacing, y: startY + r*spacing, radius: 8, 
+							color: '#e74c3c', name: 'Node', friction: 0.5, e_base: 0.5, Y_base: 500,
+							temperature: 293, specificHeat: 3000, absorptionFactor: 0.8,
+							criticalTemp: 400, e_min: 0.1, Y_min: 50
 						});
 					}
 				}
@@ -703,33 +791,25 @@
 				const spacing = 40;
 				const startX = -100;
 				const y = groundY - 30;
+				const bodyProps = {
+					e_base: 0.4, Y_base: 2000, temperature: 310, specificHeat: 3500,
+					absorptionFactor: 0.7, criticalTemp: 350
+				};
 
 				for(let i=0; i<segments; i++) {
-					sim.addBody({ mass: 10, x: startX + i*spacing, y: y, radius: 10, color: '#f1c40f', name: `Node ${i}` });
+					sim.addBody({ mass: 10, x: startX + i*spacing, y: y, radius: 10, color: '#f1c40f', name: `Node ${i}`, ...bodyProps });
 					
 					if (i > 0) {
-						sim.addElasticBond(i-1, i, {
-							stiffness: 500,
-							damping: 200,
-							length: spacing,
-							type: 'spring'
-						});
-						
+						sim.addElasticBond(i-1, i, { stiffness: 500, damping: 200, length: spacing, type: 'spring' });
 						if (i > 1) {
 							sim.addElasticBond(i-2, i, {
-								stiffness: 50,
-								damping: 10,
-								length: spacing * 1.8,
-								type: 'spring',
-								activeAmp: 0.2,
-								activeFreq: 10*15.0 + i * 2, 
-								color: '#e74c3c',
-								name: 'Muscle'
+								stiffness: 50, damping: 10, length: spacing * 1.8, type: 'spring',
+								activeAmp: 0.2, activeFreq: 10*15.0 + i * 2, color: '#e74c3c', name: 'Muscle'
 							});
 						}
 					}
 					
-					sim.addBody({ mass: 5, x: startX + i*spacing, y: y + 25, radius: 5, color: '#888', name: `Foot ${i}` });
+					sim.addBody({ mass: 5, x: startX + i*spacing, y: y + 25, radius: 5, color: '#888', name: `Foot ${i}`, ...bodyProps });
 					sim.addElasticBond(i*2, i*2+1, { stiffness: 80, damping: 2, length: 25 });
 					if (i > 0) {
 						sim.addElasticBond((i-1)*2+1, i*2+1, { stiffness: 5, damping: 5, length: spacing });
@@ -762,12 +842,8 @@
 					for(let c=0; c<cols; c++) {
 						const fixed = (r === 0);
 						sim.addBody({
-							mass: fixed ? -1 : 10, 
-							x: startX + c*w, 
-							y: startY - r*h, 
-							radius: 5, 
-							color: '#ecf0f1', 
-							name: 'Brick'
+							mass: fixed ? -1 : 10, x: startX + c*w, y: startY - r*h, radius: 5, 
+							color: '#ecf0f1', name: 'Brick', e_base: 0.4, Y_base: 5000, temperature: 293
 						});
 					}
 				}
@@ -787,8 +863,8 @@
 				}
 
 				sim.addBody({
-					mass: 300, x: -300, y: 0, vx: 30, radius: 25, 
-					color: '#2c3e50', name: 'Wrecking Ball'
+					mass: 300, x: -300, y: 0, vx: 30, radius: 25, color: '#2c3e50', name: 'Wrecking Ball',
+					e_base: 0.6, Y_base: 50000, temperature: 293
 				});
 				
 				sim.addFieldZone(-600, -300, 1200, 700, 0, 0.1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
@@ -814,12 +890,9 @@
 					for(let c=0; c<cols; c++) {
 						const fixed = (r === 0); 
 						sim.addBody({
-							mass: fixed ? -1 : 2, 
-							x: startX + c*spacing, 
-							y: startY + r*spacing, 
-							radius: 3, 
-							color: '#fff', 
-							name: 'Node'
+							mass: fixed ? -1 : 2, x: startX + c*spacing, y: startY + r*spacing, 
+							radius: 3, color: '#fff', name: 'Node',
+							e_base: 0.3, Y_base: 100, temperature: 293
 						});
 					}
 				}
@@ -850,28 +923,23 @@
 				
 				sim.addBody({ mass: -1, x: 0, y: -250, radius: 10, color: '#fff', name: 'Anchor' });
 				
+				const linkProps = { e_base: 0.5, Y_base: 40000, temperature: 293 };
 				for(let i=1; i<=segments; i++) {
 					sim.addBody({
-						mass: 5, x: i * 5, y: -250 + i * len, 
-						radius: 5, color: '#bdc3c7', name: `Link ${i}`
+						mass: 5, x: i * 5, y: -250 + i * len, radius: 5, 
+						color: '#bdc3c7', name: `Link ${i}`, ...linkProps
 					});
 					sim.addElasticBond(i-1, i, {
-						type: 'chain',
-						length: len,
-						stiffness: 800,
-						damping: 2,
-						nonLinearity: 1.5,
-						color: '#7f8c8d'
+						type: 'chain', length: len, stiffness: 800,
+						damping: 2, nonLinearity: 1.5, color: '#7f8c8d'
 					});
 				}
 				
-				sim.addBody({ mass: 50, x: segments * 5, y: -250 + (segments + 1) * len, radius: 20, color: '#e67e22', name: 'Weight' });
-				sim.addElasticBond(segments, segments + 1, {
-					type: 'chain',
-					length: len,
-					stiffness: 800,
-					damping: 200
+				sim.addBody({ 
+					mass: 50, x: segments * 5, y: -250 + (segments + 1) * len, 
+					radius: 20, color: '#e67e22', name: 'Weight', ...linkProps
 				});
+				sim.addElasticBond(segments, segments + 1, { type: 'chain', length: len, stiffness: 800, damping: 200 });
 				
 				sim.addFieldZone(-1000, -1000, 2000, 2000, 0, 0.1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
 			}
@@ -897,9 +965,10 @@
 				const v1x = -0.5 * v3x;
 				const v1y = -0.5 * v3y;
 
-				sim.addBody({ mass: m, x: p1x, y: p1y, vx: v1x, vy: v1y, radius: 10, color: '#3498db', name: 'Body 1' });
-				sim.addBody({ mass: m, x: -p1x, y: -p1y, vx: v1x, vy: v1y, radius: 10, color: '#e74c3c', name: 'Body 2' });
-				sim.addBody({ mass: m, x: 0, y: 0, vx: v3x, vy: v3y, radius: 10, color: '#f1c40f', name: 'Body 3' });
+				const bodyProps = { temperature: 800, e_base: 0.7, Y_base: 6000 };
+				sim.addBody({ mass: m, x: p1x, y: p1y, vx: v1x, vy: v1y, radius: 10, color: '#3498db', name: 'Body 1', ...bodyProps });
+				sim.addBody({ mass: m, x: -p1x, y: -p1y, vx: v1x, vy: v1y, radius: 10, color: '#e74c3c', name: 'Body 2', ...bodyProps });
+				sim.addBody({ mass: m, x: 0, y: 0, vx: v3x, vy: v3y, radius: 10, color: '#f1c40f', name: 'Body 3', ...bodyProps });
 			}
 		},
 		{
@@ -915,11 +984,12 @@
 				const dist = 250;
 				const q = 4000;
 				const r = 20;
+				const fixedProps = { friction: 0.5, e_base: 1.0, temperature: 293 };
 
-				sim.addBody({ mass: -1, x: dist, y: dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, restitution: 1, friction: 0.5 });
-				sim.addBody({ mass: -1, x: -dist, y: -dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, restitution: 1, friction: 0.5 });
-				sim.addBody({ mass: -1, x: -dist, y: dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, restitution: 1, friction: 0.5 });
-				sim.addBody({ mass: -1, x: dist, y: -dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, restitution: 1, friction: 0.5 });
+				sim.addBody({ mass: -1, x: dist, y: dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, ...fixedProps });
+				sim.addBody({ mass: -1, x: -dist, y: -dist, radius: r, color: '#e74c3c', name: 'Fix +', charge: q, ...fixedProps });
+				sim.addBody({ mass: -1, x: -dist, y: dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, ...fixedProps });
+				sim.addBody({ mass: -1, x: dist, y: -dist, radius: r, color: '#3498db', name: 'Fix -', charge: -q, ...fixedProps });
 
 				for(let i=0; i<70; i++) {
 					const bx = (Math.random() - 0.5) * 200;
@@ -927,9 +997,8 @@
 					const vx = (Math.random() - 0.5) * 2;
 					const vy = (Math.random() - 0.5) * 2;
 					sim.addBody({
-						mass: 1, x: bx, y: by, vx: vx, vy: vy, 
-						radius: 2, color: '#fff', name: 'Ion', 
-						charge: 10, restitution: 1, friction: 0.1
+						mass: 1, x: bx, y: by, vx: vx, vy: vy, radius: 2, color: '#fff', name: 'Ion', 
+						charge: 10, friction: 0.1, e_base: 1.0, temperature: 500, Y_base: 0
 					});
 				}
 			}
@@ -944,7 +1013,10 @@
 				sim.enableCollision = false;
 
 				const bhMass = 50000;
-				sim.addBody({ mass: bhMass, x: 0, y: 0, radius: 8, color: '#fff', name: 'Black Hole' });
+				sim.addBody({
+					mass: bhMass, x: 0, y: 0, radius: 8, color: '#fff', name: 'Black Hole',
+					temperature: 1, e_base: 0, Y_base: 1e9, absorptionFactor: 1.0
+				});
 
 				const stars = 60;
 				const arms = 3;
@@ -964,8 +1036,8 @@
 					const hue = 200 + Math.random() * 60;
 					const color = `hsl(${hue}, 80%, 70%)`;
 					sim.addBody({
-						mass: Math.random()*3+1, x, y, vx, vy, 
-						radius: Math.random()*2+1, color, name: 'Star'
+						mass: Math.random()*3+1, x, y, vx, vy, radius: Math.random()*2+1, color, name: 'Star',
+						temperature: 6000, e_base: 0.8, Y_base: 3000
 					});
 				}
 			}
@@ -992,8 +1064,14 @@
 				const vy1 = x1 * angularVel;
 				const vy2 = x2 * angularVel;
 
-				sim.addBody({ mass: M1, x: x1, y: 0, vy: vy1, radius: 20, color: '#f1c40f', name: 'Sun' });
-				sim.addBody({ mass: M2, x: x2, y: 0, vy: vy2, radius: 10, color: '#3498db', name: 'Planet' });
+				sim.addBody({
+					mass: M1, x: x1, y: 0, vy: vy1, radius: 20, color: '#f1c40f', name: 'Sun',
+					temperature: 6000, e_base: 1.0, Y_base: 5000
+				});
+				sim.addBody({
+					mass: M2, x: x2, y: 0, vy: vy2, radius: 10, color: '#3498db', name: 'Planet',
+					temperature: 300, e_base: 0.6, Y_base: 8000
+				});
 
 				const l4x = x1 + R * Math.cos(Math.PI/3);
 				const l4y = R * Math.sin(Math.PI/3);
@@ -1013,14 +1091,10 @@
 						const offY = (Math.random()-0.5) * 17;
 						
 						sim.addBody({
-							mass: 0.01, 
-							x: cx+offX, 
-							y: cy+offY, 
-							vx: vX + (Math.random()-0.5)*0.4, 
-							vy: vY + (Math.random()-0.5)*0.4, 
-							radius: 0.2, 
-							color: '#95a5a6', 
-							name: label
+							mass: 0.01, x: cx+offX, y: cy+offY, 
+							vx: vX + (Math.random()-0.5)*0.4, vy: vY + (Math.random()-0.5)*0.4, 
+							radius: 0.2, color: '#95a5a6', name: label,
+							temperature: 150, e_base: 0.7, Y_base: 5000
 						});
 					}
 				};

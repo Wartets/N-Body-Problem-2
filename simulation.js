@@ -7,7 +7,6 @@ window.App = {
 window.App.BodySchema = {
 	mass: { default: 1, label: 'Mass', tip: 'Body mass. Set to -1 for a fixed body.', type: 'number', constraint: 'mass' },
 	radius: { default: 2, label: 'Radius', tip: 'Body radius for collisions.', type: 'number', constraint: 'positive' },
-	restitution: { default: 1.0, label: 'Restit. Coeff.', tip: 'Collision elasticity (0-1).', type: 'number', constraint: 'non-negative' },
 	x: { default: 0, label: 'Position X', tip: 'Current X coordinate.', type: 'number', constraint: 'default', prec: 2 },
 	y: { default: 0, label: 'Position Y', tip: 'Current Y coordinate.', type: 'number', constraint: 'default', prec: 2 },
 	vx: { default: 0, label: 'Velocity X', tip: 'Current velocity on X axis.', type: 'number', constraint: 'default', prec: 3 },
@@ -17,10 +16,20 @@ window.App.BodySchema = {
 	charge: { default: 0, label: 'Charge (e)', tip: 'Body electric charge.', type: 'number', constraint: 'default' },
 	magMoment: { default: 0, label: 'Mag. Moment', tip: 'Body magnetic moment.', type: 'number', constraint: 'default' },
 	rotationSpeed: { default: 0, label: 'Rot. Speed', tip: 'Body rotation speed.', type: 'number', constraint: 'default', prec: 3 },
-	temperature: { default: 0, label: 'Temp.', tip: 'Body temperature (currently visual only).', type: 'number', constraint: 'non-negative', prec: 0 },
-	youngModulus: { default: 0, label: 'Young\'s Mod.', tip: 'Material Young\'s modulus.', type: 'number', constraint: 'non-negative', prec: 0 },
 	friction: { default: 0.5, label: 'Friction Coeff.', tip: 'Friction coefficient during collisions.', type: 'number', constraint: 'non-negative' },
 	lifetime: { default: -1, label: 'Lifetime', tip: 'Body lifetime in simulation ticks. -1 for infinite.', type: 'number', constraint: 'lifetime', prec: 0 },
+	
+	temperature: { default: 293, label: 'Temp. (K)', tip: 'Body temperature in Kelvin.', type: 'number', constraint: 'non-negative', prec: 0 },
+	specificHeat: { default: 1000, label: 'Heat Cap.', tip: 'Specific Heat Capacity (J/kg·K).', type: 'number', constraint: 'positive', prec: 0, inputId: 'newSpecificHeat' },
+	absorptionFactor: { default: 0.5, label: 'Absorp. Fact.', tip: 'Collision energy to heat conversion factor (0-1).', type: 'number', constraint: 'non-negative', inputId: 'newAbsorptionFactor' },
+	criticalTemp: { default: 1000, label: 'Crit. Temp (K)', tip: 'Temperature for material property change.', type: 'number', constraint: 'non-negative', prec: 0, inputId: 'newCriticalTemp' },
+	transitionFactor: { default: 0.01, label: 'Trans. Fact.', tip: 'Softness of property change around critical temp.', type: 'number', constraint: 'default', inputId: 'newTransitionFactor' },
+	
+	e_base: { default: 1.0, label: 'Restit. (Cold)', tip: 'Base restitution coefficient (solid state).', type: 'number', constraint: 'non-negative', inputId: 'newE_base' },
+	e_min: { default: 0.1, label: 'Restit. (Hot)', tip: 'Minimum restitution coefficient (liquid state).', type: 'number', constraint: 'non-negative', inputId: 'newE_min' },
+	Y_base: { default: 0, label: 'Young\'s M. (Cold)', tip: 'Base Young\'s Modulus (solid state).', type: 'number', constraint: 'non-negative', prec: 0, inputId: 'newY_base' },
+	Y_min: { default: 0, label: 'Young\'s M. (Hot)', tip: 'Minimum Young\'s Modulus (liquid state).', type: 'number', constraint: 'non-negative', prec: 0, inputId: 'newY_min' },
+
 	name: { default: "Body", label: 'Name', type: 'string' },
 	color: { default: null, label: 'Color', type: 'color' }
 };
@@ -53,6 +62,9 @@ class Body {
 		this.ay = 0;
 		this.path = [];
 		this.angle = 0;
+		
+		this.e_current = this.e_base;
+		this.Y_current = this.Y_base;
 	}
 };
 
@@ -60,6 +72,7 @@ const Simulation = {
 	bodies: [],
 	periodicZones: [],
 	viscosityZones: [],
+	thermalZones: [],
 	elasticBonds: [],
 	solidBarriers: [],
 	G: 0.5,
@@ -69,11 +82,16 @@ const Simulation = {
 	dt: 0.25,
 	paused: true,
 	maxRadius: 0,
+	grid: {},
+	cellSize: 50,
 	
 	enableGravity: true,
 	enableElectricity: false,
 	enableMagnetism: false,
 	enableCollision: false,
+	enableThermodynamics: false,
+	T_ambient: 3.0,
+	sigma: 0.0001,
 	
 	formulaFields: [],
 	
@@ -90,10 +108,12 @@ const Simulation = {
 		this.bodies = [];
 		this.periodicZones = [];
 		this.viscosityZones = [];
+		this.thermalZones = [];
 		this.elasticBonds = [];
 		this.solidBarriers = [];
 		this.fieldZones = [];
 		this.formulaFields = [];
+		this.grid = {};
 	},
 	
 	addBody: function(config) {
@@ -240,6 +260,25 @@ const Simulation = {
 	
 	removeFieldZone: function(id) {
 		this.fieldZones = this.fieldZones.filter(z => z.id !== id);
+	},
+	
+	addThermalZone: function(x, y, w, h, temperature, heatTransferCoefficient, color) {
+		this.thermalZones.push({
+			id: Date.now() + Math.random(),
+			name: `Thermal ${this.thermalZones.length + 1}`,
+			x: x,
+			y: y,
+			width: w,
+			height: h,
+			temperature: Math.max(0, temperature || 500),
+			heatTransferCoefficient: heatTransferCoefficient || 0.1,
+			color: color || '#e74c3c',
+			enabled: true
+		});
+	},
+	
+	removeThermalZone: function(id) {
+		this.thermalZones = this.thermalZones.filter(z => z.id !== id);
 	},
 	
 	calculateFormulaField: function(x, y) {
@@ -633,8 +672,17 @@ const Simulation = {
 		return didWrap;
 	},
 	
+	updateThermoProperties: function(body) {
+		if (!this.enableThermodynamics || body.mass <= 0) return;
+
+		const S = 1 / (1 + Math.exp(body.transitionFactor * (body.temperature - body.criticalTemp)));
+
+		body.e_current = body.e_min + (body.e_base - body.e_min) * S;
+		body.Y_current = body.Y_min + (body.Y_base - body.Y_min) * S;
+	},
+	
 	resolveCollision: function(b1, b2, nx, ny, dist, overlap) {
-		const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
+		const avgYoung = (b1.Y_current + b2.Y_current) / 2;
 		let fx = 0, fy = 0;
 		
 		if (avgYoung > 0) {
@@ -662,7 +710,7 @@ const Simulation = {
 		const vn = rvx * nx + rvy * ny;
 
 		if (vn < 0) {
-			const e = Math.min(b1.restitution, b2.restitution);
+			const e = Math.min(b1.e_current, b2.e_current);
 			const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
 			const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
 			
@@ -702,6 +750,30 @@ const Simulation = {
 				b2.vy -= Jy * invM2;
 				const torque = (r2x * -jty - r2y * -jtx);
 				b2.rotationSpeed += torque * i2;
+			}
+			
+			if (this.enableThermodynamics && b1.mass > 0 && b2.mass > 0) {
+				const mu = (b1.mass * b2.mass) / (b1.mass + b2.mass);
+				const e_avg = (b1.e_current + b2.e_current) / 2;
+				const delta_E = 0.5 * mu * (vn * vn) * (1 - e_avg * e_avg);
+				
+				const Y_sum = b1.Y_current + b2.Y_current;
+				if (Y_sum > 0) {
+					const ratio1 = b2.Y_current / Y_sum;
+					const ratio2 = b1.Y_current / Y_sum;
+					
+					const Q1 = delta_E * ratio1 * b1.absorptionFactor;
+					const Q2 = delta_E * ratio2 * b2.absorptionFactor;
+					
+					if (b1.specificHeat > 0) {
+						b1.temperature += Q1 / (b1.mass * b1.specificHeat);
+						this.updateThermoProperties(b1);
+					}
+					if (b2.specificHeat > 0) {
+						b2.temperature += Q2 / (b2.mass * b2.specificHeat);
+						this.updateThermoProperties(b2);
+					}
+				}
 			}
 
 			const correctionPercent = 0.8;
@@ -818,8 +890,143 @@ const Simulation = {
 		return wrapped;
 	},
 	
+	updateGrid: function() {
+		this.grid = {};
+		const bodies = this.bodies;
+		const numBodies = bodies.length;
+		if (numBodies === 0) {
+			this.cellSize = 50;
+			return;
+		}
+	
+		let maxR = 0;
+		for (let i = 0; i < numBodies; i++) {
+			if (bodies[i].radius > maxR) {
+				maxR = bodies[i].radius;
+			}
+		}
+	
+		this.cellSize = Math.max(50, maxR * 2.1);
+		const cellSize = this.cellSize;
+	
+		for (let i = 0; i < numBodies; i++) {
+			const b = bodies[i];
+			const gridX = Math.floor(b.x / cellSize);
+			const gridY = Math.floor(b.y / cellSize);
+			const key = `${gridX},${gridY}`;
+			if (!this.grid[key]) {
+				this.grid[key] = [];
+			}
+			this.grid[key].push(i);
+		}
+	},
+	
+	computeLongRangeInteractions: function(bodies) {
+		if (!this.enableGravity && !this.enableElectricity && !this.enableMagnetism) return;
+	
+		const count = bodies.length;
+		for (let i = 0; i < count; i++) {
+			for (let j = i + 1; j < count; j++) {
+				const b1 = bodies[i];
+				const b2 = bodies[j];
+	
+				const dx = b2.x - b1.x;
+				const dy = b2.y - b1.y;
+				const distSq = dx*dx + dy*dy;
+	
+				if (distSq < 1e-9) continue;
+	
+				const dist = Math.sqrt(distSq);
+				const nx = dx / dist;
+				const ny = dy / dist;
+	
+				let f_total = 0;
+	
+				if (this.enableGravity) {
+					const m1 = b1.mass === -1 ? 1 : b1.mass; 
+					const m2 = b2.mass === -1 ? 1 : b2.mass; 
+					f_total += (this.G * m1 * m2) / distSq;
+				}
+	
+				if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
+					f_total -= (this.Ke * b1.charge * b2.charge) / distSq;
+				}
+	
+				if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
+					f_total -= (this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+				}
+	
+				const fx = f_total * nx;
+				const fy = f_total * ny;
+	
+				if (b1.mass !== -1) {
+					b1.ax += fx / b1.mass;
+					b1.ay += fy / b1.mass;
+				}
+				if (b2.mass !== -1) {
+					b2.ax -= fx / b2.mass;
+					b2.ay -= fy / b2.mass;
+				}
+			}
+		}
+	},
+	
+	computeShortRangeInteractions: function(bodies, grid) {
+		if (!this.enableCollision) return;
+		
+		grid = grid || this.grid;
+	
+		const count = bodies.length;
+		const cellSize = this.cellSize;
+		
+		for (let i = 0; i < count; i++) {
+			const b1 = bodies[i];
+			const gridX = Math.floor(b1.x / cellSize);
+			const gridY = Math.floor(b1.y / cellSize);
+	
+			for (let x = gridX - 1; x <= gridX + 1; x++) {
+				for (let y = gridY - 1; y <= gridY + 1; y++) {
+					const key = `${x},${y}`;
+					if (grid[key]) {
+						for (const j of grid[key]) {
+							if (i >= j) continue;
+							
+							const b2 = bodies[j];
+							const dx = b2.x - b1.x;
+							const dy = b2.y - b1.y;
+							const distSq = dx*dx + dy*dy;
+							const minDist = b1.radius + b2.radius;
+							
+							if (distSq < (minDist * minDist)) {
+								const dist = Math.sqrt(distSq);
+								const nx = dist > 0 ? dx / dist : 1;
+								const ny = dist > 0 ? dy / dist : 0;
+								const overlap = minDist - dist;
+								const forces = this.resolveCollision(b1, b2, nx, ny, dist, overlap);
+	
+								const fx = forces.fx;
+								const fy = forces.fy;
+								
+								if (b1.mass !== -1) {
+									b1.ax += fx / b1.mass;
+									b1.ay += fy / b1.mass;
+								}
+								if (b2.mass !== -1) {
+									b2.ax -= fx / b2.mass;
+									b2.ay -= fy / b2.mass;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	
 	update: function(force = false) {
 		if (this.paused && !force) return;
+
+		this.updateGrid();
 
 		const bodies = this.bodies;
 		let count = bodies.length;
@@ -836,7 +1043,8 @@ const Simulation = {
 		}
 
 		this.computeBonds(bodies, dt);
-		this.computeInteractions(bodies);
+		this.computeLongRangeInteractions(bodies);
+		this.computeShortRangeInteractions(bodies);
 	
 		for (let i = 0; i < count; i++) {
 			const b = bodies[i];
@@ -852,6 +1060,44 @@ const Simulation = {
 			}
 
 			this.integrateBody(b, dt);
+			
+			if (this.enableThermodynamics && b.mass > 0 && b.specificHeat > 0) {
+				const A = 4 * Math.PI * b.radius * b.radius;
+				let P_rad = 0;
+
+				if (this.T_ambient !== -1) {
+					P_rad = this.sigma * A * (Math.pow(b.temperature, 4) - Math.pow(this.T_ambient, 4));
+				} else {
+					P_rad = this.sigma * A * Math.pow(b.temperature, 4);
+				}
+
+				const dE_wanted = P_rad * dt;
+				let dE_max = 0;
+
+				if (this.T_ambient !== -1) {
+					dE_max = b.mass * b.specificHeat * (b.temperature - this.T_ambient);
+				} else {
+					dE_max = b.mass * b.specificHeat * b.temperature;
+				}
+				
+				const dE_effective = Math.min(dE_wanted, dE_max);
+				
+				if (dE_effective > 0) {
+					b.temperature -= dE_effective / (b.mass * b.specificHeat);
+					if (b.temperature < 0) b.temperature = 0;
+					this.updateThermoProperties(b);
+				}
+
+				for (const z of this.thermalZones) {
+					if (z.enabled && b.x >= z.x && b.x <= z.x + z.width && b.y >= z.y && b.y <= z.y + z.height) {
+						const dT = (z.temperature - b.temperature) * (1 - Math.exp(-z.heatTransferCoefficient * dt));
+						b.temperature += dT;
+						if (b.temperature < 0) b.temperature = 0;
+						this.updateThermoProperties(b);
+						break;
+					}
+				}
+			}
 
 			if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
 				if (b.path.length === 0 || 
@@ -871,12 +1117,13 @@ const Simulation = {
 	},
 	
 	predictPath: function(bodyIndex, numSteps, stepDt) {
-		const tempBodies = JSON.parse(JSON.stringify(this.bodies));
-		if (!tempBodies[bodyIndex]) return [];
+		if (!this.bodies[bodyIndex]) return [];
 		
+		const tempBodies = this.bodies.map(b => new Body(b));
 		const predictedPath = [];
 		const count = tempBodies.length;
 		const dt = stepDt;
+		const cellSize = this.cellSize;
 
 		for (let step = 0; step < numSteps; step++) {
 			for (let i = 0; i < count; i++) {
@@ -889,7 +1136,21 @@ const Simulation = {
 			}
 
 			this.computeBonds(tempBodies, dt);
-			this.computeInteractions(tempBodies);
+
+			const tempGrid = {};
+			for (let i = 0; i < count; i++) {
+				const b = tempBodies[i];
+				const gridX = Math.floor(b.x / cellSize);
+				const gridY = Math.floor(b.y / cellSize);
+				const key = `${gridX},${gridY}`;
+				if (!tempGrid[key]) {
+					tempGrid[key] = [];
+				}
+				tempGrid[key].push(i);
+			}
+	
+			this.computeLongRangeInteractions(tempBodies);
+			this.computeShortRangeInteractions(tempBodies, tempGrid);
 
 			let targetJumped = false;
 

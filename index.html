@@ -44,9 +44,9 @@
 			<span class="app-title"><i class="fa-solid fa-sliders"></i> Parameters</span>
 			<button id="togglePanelBtn"><i class="fa-solid fa-minus"></i></button>
 		</div>
-		
+
 		<div id="panelContent">
-			
+
 			<div class="control-section">
 				<div class="section-header">Simulation control</div>
 				<div class="btn-group">
@@ -62,10 +62,10 @@
 					<span id="dtVal" class="value-display"></span>
 				</div>
 				<input type="range" id="dtSlider" min="0" max="1000" step="1">
-				
+
 				<div class="divider-sub"></div>
 				<div class="section-header" style="margin-top: 8px;">Interactions</div>
-				
+
 				<label class="toggle-row">
 					<span>Gravity <i class="fa-solid fa-circle-question help-icon" data-tooltip="Enables gravitational attraction between massive bodies."></i></span>
 					<input type="checkbox" id="gravBox" checked>
@@ -86,6 +86,17 @@
 					<input type="checkbox" id="colBox">
 					<div class="toggle-switch"></div>
 				</label>
+				<label class="toggle-row" style="margin-top:4px;">
+					<span>Thermodynamics <i class="fa-solid fa-circle-question help-icon" data-tooltip="Enables heat generation from collisions and radiative cooling. Affects body properties."></i></span>
+					<input type="checkbox" id="thermoBox">
+					<div class="toggle-switch"></div>
+				</label>
+				<div id="thermoParams" class="hidden-content" style="margin-top: 8px;">
+					<div class="control-row">
+						<label>Ambient Temp. (K) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Ambient temperature for radiative cooling. -1 for absence of temperature."></i></label>
+						<input type="text" id="ambientTempInput" style="width: 60px; text-align: right; background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); border-radius: 3px; font-size: 11px; padding: 2px 4px;">
+					</div>
+				</div>
 			</div>
 
 			<div class="divider"></div>
@@ -200,7 +211,7 @@
 					<span>Injection parameters</span>
 					<button id="toggleInjectionBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
 				</div>
-				
+								
 				<div id="injectionContent">
 					<div class="grid-2-col">
 						<div class="input-wrapper" style="grid-column: span 3;">
@@ -211,20 +222,32 @@
 						</div>
 						<div class="input-wrapper"><label>Mass <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body mass. Drag label to adjust (Shift: precise, Ctrl: fast). Set to -1 for a fixed body."></i></label><input type="text" id="newMass"></div>
 						<div class="input-wrapper"><label>Radius <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body radius for collisions."></i></label><input type="text" id="newRadius"></div>
-						<div class="input-wrapper"><label>Restit. Coeff. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Collision elasticity (0=perfectly inelastic, 1=perfectly elastic)."></i></label><input type="text" id="newRestitution" min="0" max="1" step="0.01"></div>
 						<div class="input-wrapper"><label>Position X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Initial X coordinate."></i></label><input type="text" id="newX"></div>
 						<div class="input-wrapper"><label>Position Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Initial Y coordinate."></i></label><input type="text" id="newY"></div>
-						<div class="input-wrapper"><label>Charge (e) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body electric charge."></i></label><input type="text" id="newCharge"></div>
 						<div class="input-wrapper"><label>Velocity X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Initial velocity on X axis."></i></label><input type="text" id="newVX"></div>
 						<div class="input-wrapper"><label>Velocity Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Initial velocity on Y axis."></i></label><input type="text" id="newVY"></div>
-						<div class="input-wrapper"><label>Mag. Moment <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body magnetic moment."></i></label><input type="text" id="newMagMoment"></div>
 						<div class="input-wrapper"><label>Acc X <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration applied on X axis."></i></label><input type="text" id="newAX"></div>
 						<div class="input-wrapper"><label>Acc Y <i class="fa-solid fa-circle-question help-icon" data-tooltip="Constant acceleration applied on Y axis."></i></label><input type="text" id="newAY"></div>
+						<div class="input-wrapper"><label>Charge (e) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body electric charge."></i></label><input type="text" id="newCharge"></div>
+						<div class="input-wrapper"><label>Mag. Moment <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body magnetic moment."></i></label><input type="text" id="newMagMoment"></div>
 						<div class="input-wrapper"><label>Rot. Speed <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body rotation speed."></i></label><input type="text" id="newRotationSpeed"></div>
-						<div class="input-wrapper"><label>Temp. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body temperature (currently visual only)."></i></label><input type="text" id="newTemperature"></div>
-						<div class="input-wrapper"><label>Young's Mod. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Material Young's modulus, affects repulsion force during collisions."></i></label><input type="text" id="newYoungModulus"></div>
 						<div class="input-wrapper"><label>Friction Coeff. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Friction coefficient during collisions."></i></label><input type="text" id="newFriction" min="0" max="2" step="0.01"></div>
 						<div class="input-wrapper"><label>Lifetime (ticks) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Body lifetime in simulation 'ticks'. -1 for infinite."></i></label><input type="text" id="newLifetime" min="-1" step="1"></div>
+					</div>
+
+					<div class="divider-sub" style="margin-top: 8px;"></div>
+					<div class="section-header" style="font-size: 10px; margin-bottom: 5px;">Thermodynamics</div>
+					
+					<div class="grid-2-col">
+						<div class="input-wrapper"><label>Temp. (K) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Initial body temperature in Kelvin."></i></label><input type="text" id="newTemperature"></div>
+						<div class="input-wrapper"><label>Heat Cap. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Specific Heat Capacity (J/kg·K). Thermal inertia."></i></label><input type="text" id="newSpecificHeat"></div>
+						<div class="input-wrapper"><label>Absorp. Fact. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Absorption Factor (0-1). Fraction of collision energy converted to heat."></i></label><input type="text" id="newAbsorptionFactor"></div>
+						<div class="input-wrapper"><label>Crit. Temp (K) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Critical Temperature (K) where material properties change."></i></label><input type="text" id="newCriticalTemp"></div>
+						<div class="input-wrapper"><label>Trans. Fact. <i class="fa-solid fa-circle-question help-icon" data-tooltip="Transition Factor. Defines the softness of the material property change around critical temperature."></i></label><input type="text" id="newTransitionFactor"></div>
+						<div class="input-wrapper"><label>Restit. (Cold) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Base restitution coefficient (solid state)."></i></label><input type="text" id="newE_base"></div>
+						<div class="input-wrapper"><label>Restit. (Hot) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Minimum restitution coefficient (liquid state)."></i></label><input type="text" id="newE_min"></div>
+						<div class="input-wrapper"><label>Young's M. (Cold) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Base Young's Modulus (solid state)."></i></label><input type="text" id="newY_base"></div>
+						<div class="input-wrapper"><label>Young's M. (Hot) <i class="fa-solid fa-circle-question help-icon" data-tooltip="Minimum Young's Modulus (liquid state)."></i></label><input type="text" id="newY_min"></div>
 					</div>
 					
 					<div class="divider-sub"></div>
@@ -316,44 +339,6 @@
 			<div class="divider"></div>
 			
 			<div class="control-section">
-				<div class="section-header">Periodic Zones</div>
-				<button id="toggleZoneDrawBtn" class="btn secondary">
-					<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)
-				</button>
-				
-				<div id="periodicZonesCollapsible" style="display: none;">
-					<div class="divider-sub"></div>
-					<div class="section-header toggle-header" id="periodicZonesListHeader">
-						<span>Defined Zones <span id="periodicZoneListCount">0</span></span>
-						<button id="togglePeriodicZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
-					</div>
-					<div id="zonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
-					</div>
-				</div>
-			</div>
-			
-			<div class="divider"></div>
-			
-			<div class="control-section">
-				<div class="section-header">Viscosity Zones</div>
-				<button id="toggleViscosityZoneBtn" class="btn secondary">
-					<i class="fa-solid fa-water"></i> Draw Viscosity (Off)
-				</button>
-				
-				<div id="viscosityZonesCollapsible" style="display: none;">
-					<div class="divider-sub"></div>
-					<div class="section-header toggle-header" id="viscosityZonesListHeader">
-						<span>Defined Zones <span id="viscosityZoneListCount">0</span></span>
-						<button id="toggleViscosityZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
-					</div>
-					<div id="viscosityZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
-					</div>
-				</div>
-			</div>
-			
-			<div class="divider"></div>
-			
-			<div class="control-section">
 				<div class="section-header">Elastic Bonds</div>
 				<button id="toggleBondToolBtn" class="btn secondary">
 					<i class="fa-solid fa-link"></i> Link Bodies (Off)
@@ -392,6 +377,44 @@
 			<div class="divider"></div>
 			
 			<div class="control-section">
+				<div class="section-header">Periodic Zones</div>
+				<button id="toggleZoneDrawBtn" class="btn secondary">
+					<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)
+				</button>
+				
+				<div id="periodicZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="periodicZonesListHeader">
+						<span>Defined Zones <span id="periodicZoneListCount">0</span></span>
+						<button id="togglePeriodicZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="zonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Viscosity Zones</div>
+				<button id="toggleViscosityZoneBtn" class="btn secondary">
+					<i class="fa-solid fa-water"></i> Draw Viscosity (Off)
+				</button>
+				
+				<div id="viscosityZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="viscosityZonesListHeader">
+						<span>Defined Zones <span id="viscosityZoneListCount">0</span></span>
+						<button id="toggleViscosityZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="viscosityZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider"></div>
+			
+			<div class="control-section">
 				<div class="section-header">Field Zones</div>
 				<button id="toggleFieldZoneToolBtn" class="btn secondary">
 					<i class="fa-solid fa-arrow-down"></i> Draw Field (Off)
@@ -404,6 +427,25 @@
 						<button id="toggleFieldZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
 					</div>
 					<div id="fieldZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Thermal Zones</div>
+				<button id="toggleThermalZoneBtn" class="btn secondary">
+					<i class="fa-solid fa-temperature-high"></i> Draw Thermal (Off)
+				</button>
+				
+				<div id="thermalZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="thermalZonesListHeader">
+						<span>Defined Zones <span id="thermalZoneListCount">0</span></span>
+						<button id="toggleThermalZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="thermalZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
 					</div>
 				</div>
 			</div>
