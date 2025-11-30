@@ -66,6 +66,13 @@ class Body {
 		this.e_current = this.e_base;
 		this.Y_current = this.Y_base;
 	}
+
+	clone() {
+		const newBody = new Body();
+		Object.assign(newBody, this);
+		newBody.path = [];
+		return newBody;
+	}
 };
 
 const Simulation = {
@@ -1119,7 +1126,7 @@ const Simulation = {
 	predictPath: function(bodyIndex, numSteps, stepDt) {
 		if (!this.bodies[bodyIndex]) return [];
 		
-		const tempBodies = this.bodies.map(b => new Body(b));
+		const tempBodies = this.bodies.map(b => b.clone());
 		const predictedPath = [];
 		const count = tempBodies.length;
 		const dt = stepDt;

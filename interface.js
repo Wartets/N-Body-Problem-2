@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	const Render = window.App.render;
 	let maxZIndex = 100;
 	let draggedItemIndex = null;
+	let isBatchLoading = false;
 
 	const Schema = window.App.BodySchema;
 	
@@ -440,26 +441,38 @@ document.addEventListener('DOMContentLoaded', () => {
 		loadBtn.addEventListener('click', () => {
 			const idx = parseInt(select.value, 10);
 			if (presets[idx]) {
-				Sim.reset();
-				presets[idx].init(Sim);
-				
-				const updateCheck = (id, val) => {
-					const el = document.getElementById(id);
-					if(el) el.checked = val;
-				};
-				updateCheck('gravBox', Sim.enableGravity);
-				updateCheck('elecBox', Sim.enableElectricity);
-				updateCheck('magBox', Sim.enableMagnetism);
-				updateCheck('colBox', Sim.enableCollision);
+				const progressBarContainer = document.getElementById('loading-progress-bar-container');
+				progressBarContainer.style.display = 'block';
+				document.getElementById('loading-progress-bar').style.width = '0%';
 
-				refreshBodyList();
-				refreshZoneList();
-				refreshViscosityZoneList();
-				refreshElasticBondList();
-				refreshSolidBarrierList();
-				refreshFieldZoneList();
-				refreshFieldList();
-				Render.draw();
+				setTimeout(() => {
+					isBatchLoading = true;
+					Sim.reset();
+					presets[idx].init(Sim);
+					isBatchLoading = false;
+					
+					const updateCheck = (id, val) => {
+						const el = document.getElementById(id);
+						if(el) el.checked = val;
+					};
+
+					refreshZoneList();
+					refreshViscosityZoneList();
+					refreshElasticBondList();
+					refreshSolidBarrierList();
+					refreshFieldZoneList();
+					refreshThermalZoneList();
+					refreshFieldList();
+
+					updateCheck('gravBox', Sim.enableGravity);
+					updateCheck('elecBox', Sim.enableElectricity);
+					updateCheck('magBox', Sim.enableMagnetism);
+					updateCheck('colBox', Sim.enableCollision);
+
+					refreshBodyListAsync(() => {
+						Render.draw();
+					});
+				}, 50);
 			}
 		});
 	};
@@ -593,6 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	const toggleBodiesList = () => {
+		const wasHidden = bodiesContainer.classList.contains('hidden-content');
 		bodiesContainer.classList.toggle('hidden-content');
 		const sortContainer = document.getElementById('bodySortContainer');
 		if (sortContainer) {
@@ -600,6 +614,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 		if (toggleBodiesBtn) {
 			toggleBodiesBtn.innerHTML = bodiesContainer.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+		}
+		if (wasHidden && !bodiesContainer.classList.contains('hidden-content')) {
+			refreshBodyList();
 		}
 	};
 	
@@ -847,7 +864,29 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 		Render.canvas.style.cursor = activeMode === 'none' ? 'default' : 'crosshair';
 	};
-
+	
+	const progressBarContainer = document.createElement('div');
+	progressBarContainer.id = 'loading-progress-bar-container';
+	Object.assign(progressBarContainer.style, {
+		display: 'none',
+		position: 'fixed',
+		bottom: '0',
+		left: '0',
+		width: '100%',
+		height: '2px',
+		zIndex: '10001',
+		opacity: '0.5',
+		pointerEvents: 'none'
+	});
+	const progressBar = document.createElement('div');
+	progressBar.id = 'loading-progress-bar';
+	Object.assign(progressBar.style, {
+		height: '100%',
+		width: '0%',
+		background: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff)'
+	});
+	progressBarContainer.appendChild(progressBar);
+	document.body.appendChild(progressBarContainer);
 	setupDraggable(panel, header, [toolsPanel]);
 	setupDraggable(toolsPanel, toolsHeader, [panel]);
 	
@@ -960,6 +999,185 @@ document.addEventListener('DOMContentLoaded', () => {
 		} else {
 			generateRandomParameters(false, false);
 		}
+	});
+	
+	bodiesContainer.addEventListener('click', (e) => {
+		const card = e.target.closest('.body-card');
+		if (!card) return;
+		const index = parseInt(card.dataset.index, 10);
+		const body = Sim.bodies[index];
+		if (!body) return;
+
+		if (e.target.closest('.btn-delete')) {
+			e.stopPropagation();
+			Sim.removeBody(index);
+			return;
+		}
+
+		if (e.target.closest('.btn-track')) {
+			e.stopPropagation();
+			if (Render.trackedBodyIdx === index) {
+				Render.trackedBodyIdx = -1;
+			} else {
+				Render.trackedBodyIdx = index;
+				Render.enableTracking = false;
+				document.getElementById('camTrackingBox').checked = false;
+			}
+			refreshBodyList();
+			return;
+		}
+		
+		if (e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
+			Render.selectedBodyIdx = index;
+			window.App.ui.highlightBody(index);
+		}
+	});
+	
+	bodiesContainer.addEventListener('input', (e) => {
+		const input = e.target;
+		const card = input.closest('.body-card');
+		if (!card) return;
+		const index = parseInt(card.dataset.index, 10);
+		const body = Sim.bodies[index];
+		if (!body) return;
+
+		if (input.classList.contains('color-input-hidden')) {
+			body.color = input.value;
+			const colorDot = card.querySelector('.body-color-dot');
+			if(colorDot) {
+				colorDot.style.backgroundColor = body.color;
+				colorDot.style.boxShadow = `0 0 5px ${body.color}`;
+			}
+			card.style.borderLeftColor = body.color;
+			return;
+		}
+		
+		const key = input.dataset.key;
+		if (key) {
+			const propInfo = bodyProperties.find(p => p.key === key);
+			const constraint = propInfo ? propInfo.constraint : 'default';
+			const val = parseFloat(input.value);
+			if (!isNaN(val)) {
+				if (constraint === 'mass' && val < 1e-6 && val !== -1) body[key] = 1e-6;
+				else if (constraint === 'positive' && val < 1e-6) body[key] = 1e-6;
+				else if (constraint === 'non-negative' && val < 0) body[key] = 0;
+				else body[key] = val;
+			}
+		}
+	});
+
+	bodiesContainer.addEventListener('change', (e) => {
+		const input = e.target;
+		const card = input.closest('.body-card');
+		if (!card) return;
+		const index = parseInt(card.dataset.index, 10);
+		const body = Sim.bodies[index];
+		if (!body) return;
+
+		if (input.classList.contains('body-name-input')) {
+			body.name = input.value;
+			return;
+		}
+
+		const key = input.dataset.key;
+		if (key) {
+			const result = evaluateMathExpression(input.value);
+			if (typeof result === 'number' && parseFloat(input.value) !== result) {
+				input.value = formatVal(result, 4);
+				input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+			} else {
+				const val = parseFloat(input.value);
+				if (!isNaN(val)) {
+					if (body[key] !== val && !(key === 'mass' && val === -1)) {
+						input.value = body[key];
+					}
+				}
+			}
+		}
+	});
+	
+	bodiesContainer.addEventListener('mousedown', (e) => {
+		const label = e.target.closest('label');
+		const card = e.target.closest('.body-card');
+		if (!label || !card || 'ontouchstart' in window || e.button !== 0) {
+			if (e.target.tagName === 'INPUT') {
+				e.stopPropagation();
+			}
+			return;
+		}
+
+		const input = label.nextElementSibling;
+		if (!input || input.tagName !== 'INPUT') return;
+
+		let isDragging = true;
+		let lastX = e.clientX;
+		const constraintType = label.dataset.constraint || 'default';
+
+		document.body.style.cursor = 'ew-resize';
+		document.body.style.userSelect = 'none';
+		e.preventDefault();
+		e.stopPropagation();
+
+		const onMouseMove = (moveEvent) => {
+			if (!isDragging) return;
+
+			let currentValue = parseFloat(input.value);
+			if (isNaN(currentValue)) currentValue = 0;
+			
+			const dx = moveEvent.clientX - lastX;
+			lastX = moveEvent.clientX;
+
+			let effectiveSensitivity;
+			const absCurrent = Math.abs(currentValue);
+
+			if (absCurrent > 1000) effectiveSensitivity = 10;
+			else if (absCurrent > 100) effectiveSensitivity = 1;
+			else if (absCurrent > 10) effectiveSensitivity = 0.1;
+			else if (absCurrent >= 1 || currentValue === 0) effectiveSensitivity = 0.05;
+			else if (absCurrent > 0.1) effectiveSensitivity = 0.005;
+			else if (absCurrent > 0.01) effectiveSensitivity = 0.0005;
+			else if (absCurrent > 0.001) effectiveSensitivity = 0.00005;
+			else effectiveSensitivity = 1e-7;
+
+			if (moveEvent.shiftKey) effectiveSensitivity /= 10;
+			if (moveEvent.ctrlKey || moveEvent.metaKey) effectiveSensitivity *= 10;
+			if (moveEvent.altKey) effectiveSensitivity *= 100;
+
+			let newValue = currentValue + dx * effectiveSensitivity;
+			const minPositive = 1e-6;
+			const allowsNegativeOne = constraintType === 'mass' || constraintType === 'lifetime' || constraintType === 'breakable';
+
+			if (allowsNegativeOne) {
+				if (currentValue >= minPositive && newValue <= 0) newValue = -1;
+				else if (currentValue === -1 && dx > 0) newValue = minPositive;
+				else if (currentValue === -1 && dx <= 0) newValue = -1;
+			}
+
+			if (constraintType === 'positive') newValue = Math.max(minPositive, newValue);
+			else if (constraintType === 'non-negative') newValue = Math.max(0, newValue);
+			if (newValue > 0 && newValue < minPositive) newValue = minPositive;
+			
+			const absNew = Math.abs(newValue);
+			let precision;
+			if (newValue === -1 || absNew === 0 || absNew >= 1) precision = 2;
+			else if (absNew > 0.001) precision = 4;
+			else precision = 6;
+			
+			input.value = (newValue === -1) ? -1 : formatVal(newValue, precision);
+			input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+		};
+
+		const onMouseUp = () => {
+			isDragging = false;
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+			input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+		};
+
+		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mouseup', onMouseUp);
 	});
 	
 	document.addEventListener('dblclick', (e) => {
@@ -1100,6 +1318,15 @@ document.addEventListener('DOMContentLoaded', () => {
 		const trackBtnClass = isTracked ? 'active' : '';
 		const trackIconClass = isTracked ? 'fa-solid fa-eye' : 'fa-regular fa-eye';
 
+		let gridHtml = '';
+		bodyProperties.forEach(field => {
+			let val = body[field.key];
+			if (typeof val === 'number') {
+				val = formatVal(val, field.prec !== undefined ? field.prec : 2);
+			}
+			gridHtml += `<div class="mini-input-group"><label data-constraint="${field.constraint || 'default'}">${field.label} <i class="fa-solid fa-circle-question help-icon" data-tooltip="${field.tip}"></i></label><input type="text" class="${field.cls}" data-key="${field.key}" value="${val}"></div>`;
+		});
+
 		div.innerHTML = `
 			<div class="card-header">
 				<span class="body-id">
@@ -1112,76 +1339,9 @@ document.addEventListener('DOMContentLoaded', () => {
 				</span>
 				<button class="btn-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
 			</div>
-			<div class="card-grid"></div>
+			<div class="card-grid">${gridHtml}</div>
 		`;
 
-		const grid = div.querySelector('.card-grid');
-		
-		bodyProperties.forEach(field => {
-			const group = document.createElement('div');
-			group.className = 'mini-input-group';
-			const val = body[field.key];
-			group.innerHTML = `<label>${field.label} <i class="fa-solid fa-circle-question help-icon" data-tooltip="${field.tip}"></i></label><input type="text" class="${field.cls}" value="${val}">`;
-			grid.appendChild(group);
-
-			const input = group.querySelector('input');
-			const label = group.querySelector('label');
-			
-			addMathParsing(input);
-			setupInteractiveLabel(label, input, field.constraint);
-
-			input.addEventListener('mousedown', (e) => e.stopPropagation());
-			const handler = () => {
-				const val = parseFloat(input.value);
-				if (!isNaN(val)) {
-					if (field.constraint === 'mass' && val < 1e-6 && val !== -1) body[field.key] = 1e-6;
-					else if (field.constraint === 'positive' && val < 1e-6) body[field.key] = 1e-6;
-					else if (field.constraint === 'non-negative' && val < 0) body[field.key] = 0;
-					else body[field.key] = val;
-				}
-				if (body[field.key] !== val && !(field.constraint==='mass' && val===-1)) {
-					input.value = body[field.key];
-				}
-			};
-			input.addEventListener('change', handler);
-			input.addEventListener('input', handler);
-		});
-
-		const nameInput = div.querySelector('.body-name-input');
-		nameInput.addEventListener('change', (e) => { body.name = e.target.value; });
-		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
-		
-		const trackBtn = div.querySelector('.btn-track');
-		trackBtn.addEventListener('click', (e) => {
-			e.stopPropagation();
-			if (Render.trackedBodyIdx === index) {
-				Render.trackedBodyIdx = -1;
-			} else {
-				Render.trackedBodyIdx = index;
-				Render.enableTracking = false;
-				document.getElementById('camTrackingBox').checked = false;
-			}
-			refreshBodyList();
-		});
-		trackBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-
-		const colorInput = div.querySelector('.color-input-hidden');
-		const colorDot = div.querySelector('.body-color-dot');
-		
-		colorInput.addEventListener('input', (e) => {
-			body.color = e.target.value;
-			colorDot.style.backgroundColor = body.color;
-			colorDot.style.boxShadow = `0 0 5px ${body.color}`;
-			div.style.borderLeftColor = body.color;
-		});
-		colorInput.addEventListener('mousedown', (e) => e.stopPropagation());
-
-		div.querySelector('.btn-delete').addEventListener('click', (e) => {
-			e.stopPropagation();
-			Sim.bodies.splice(index, 1);
-			refreshBodyList();
-		});
-		
 		div.addEventListener('dragstart', (e) => {
 			if (e.target !== div) {
 				e.preventDefault();
@@ -1244,6 +1404,66 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (Render.selectedBodyIdx !== -1) {
 			window.App.ui.highlightBody(Render.selectedBodyIdx);
 		}
+	}
+	
+	function refreshBodyListAsync(onComplete) {
+		const bodies = Sim.bodies;
+		const totalBodies = bodies.length;
+		let processedBodies = 0;
+		const chunkSize = 100;
+
+		bodiesContainer.innerHTML = '';
+		bodyCountLabel.textContent = totalBodies;
+		
+		const progressBarContainer = document.getElementById('loading-progress-bar-container');
+		const progressBar = document.getElementById('loading-progress-bar');
+		
+		if (totalBodies === 0) {
+			if (onComplete) onComplete();
+			return;
+		}
+
+		progressBarContainer.style.display = 'block';
+		progressBar.style.width = '0%';
+		
+		function processChunk() {
+			const fragment = document.createDocumentFragment();
+			const end = Math.min(processedBodies + chunkSize, totalBodies);
+			
+			for (let i = processedBodies; i < end; i++) {
+				const body = bodies[i];
+				const card = createBodyCard(body, i);
+				card.addEventListener('click', (e) => {
+					if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
+						Render.selectedBodyIdx = i;
+						window.App.ui.highlightBody(i);
+					}
+				});
+				fragment.appendChild(card);
+			}
+			bodiesContainer.appendChild(fragment);
+			
+			processedBodies = end;
+
+			const progress = (processedBodies / totalBodies) * 100;
+			progressBar.style.width = `${progress}%`;
+
+			if (processedBodies < totalBodies) {
+				setTimeout(processChunk, 0);
+			} else {
+				if (Render.selectedBodyIdx !== -1) {
+					window.App.ui.highlightBody(Render.selectedBodyIdx);
+				}
+				
+				setTimeout(() => {
+					progressBarContainer.style.display = 'none';
+				}, 5);
+
+				if (onComplete) onComplete();
+			}
+		}
+		
+		processChunk();
 	}
 	
 	function createFieldCard(field, index) {
@@ -1867,7 +2087,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
-		refreshBodyList();
+		if (!isBatchLoading) {
+			refreshBodyList();
+		}
 	};
 	
 	Sim.removeBody = function(index) {
@@ -1890,6 +2112,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	window.App.ui = {
 		syncInputs: function() {
+			if (bodiesContainer.classList.contains('hidden-content')) {
+				return;
+			}
 			const cards = bodiesContainer.children;
 			for (let i = 0; i < cards.length; i++) {
 				const index = parseInt(cards[i].dataset.index);
@@ -1915,11 +2140,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			const card = document.querySelector(`.body-card[data-index="${index}"]`);
 			if (card) {
 				card.classList.add('selected');
-				card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 				
 				const container = document.getElementById('bodiesListContainer');
-				if (container.classList.contains('hidden-content')) {
-					document.getElementById('toggleBodiesBtn').click();
+				if (!container.classList.contains('hidden-content')) {
+					card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 				}
 			}
 		},

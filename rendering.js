@@ -656,6 +656,14 @@ const Rendering = {
 		const Sim = window.App.sim;
 		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return;
 
+		let contributingBodies = bodies;
+		const fieldBodyLimit = 50;
+		if (bodies.length > fieldBodyLimit) {
+			contributingBodies = [...bodies]
+				.sort((a, b) => Math.abs(b.mass) - Math.abs(a.mass))
+				.slice(0, fieldBodyLimit);
+		}
+
 		const screenStep = Math.max(0, this.fieldPrecision * 2);
 		const worldStep = screenStep / this.zoom;
 
@@ -673,7 +681,7 @@ const Rendering = {
 
 		for (let x = startX; x < worldRight + worldStep; x += worldStep) {
 			for (let y = startY; y < worldBottom + worldStep; y += worldStep) {
-				const field = this.calculateField(x, y, bodies);
+				const field = this.calculateField(x, y, contributingBodies);
 				
 				if (this.showGravField) {
 					this.drawFieldVector(x, y, field.g_fx, field.g_fy, scaleFactor, maxLen, '#2ecc71');
@@ -1362,6 +1370,16 @@ const Rendering = {
 		const segments = Math.max(5, Math.floor(this.gridDetail)); 
 		const subStep = step / segments;
 
+		const allBodies = window.App.sim.bodies;
+		const distortionBodyLimit = 25;
+		if (window.App.sim.enableGravity && this.gridDistortion > 0 && allBodies.length > distortionBodyLimit) {
+			this.distortingBodies = [...allBodies]
+				.sort((a, b) => Math.abs(b.mass) - Math.abs(a.mass))
+				.slice(0, distortionBodyLimit);
+		} else {
+			this.distortingBodies = allBodies;
+		}
+
 		this.ctx.lineWidth = 0.8 / this.zoom; 
 		this.ctx.strokeStyle = '#323332';
 		this.ctx.beginPath();
@@ -1438,10 +1456,15 @@ const Rendering = {
 			this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
 			this.ctx.fillStyle = b.color;
 			
-			this.ctx.shadowBlur = 10;
-			this.ctx.shadowColor = b.color;
-			this.ctx.fill();
-			this.ctx.shadowBlur = 0;
+			if (bodies.length > 50) {
+				this.ctx.fill();
+				
+			} else {
+				this.ctx.shadowBlur = 10;
+				this.ctx.shadowColor = b.color;
+				this.ctx.fill();
+				this.ctx.shadowBlur = 0;
+			}
 			
 			if (typeof b.angle !== 'undefined') {
 				this.ctx.beginPath();
@@ -1508,6 +1531,11 @@ const Rendering = {
 
 		let totalDx = 0;
 		let totalDy = 0;
+		if (window.App.sim.bodies.length > 50) {
+			const bodies = this.distortingBodies;
+		} else {
+			const bodies = window.App.sim.bodies;
+		}
 		const bodies = window.App.sim.bodies;
 		const limit = 0.85;
 

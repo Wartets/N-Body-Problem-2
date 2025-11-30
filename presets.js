@@ -891,7 +891,7 @@
 						const fixed = (r === 0); 
 						sim.addBody({
 							mass: fixed ? -1 : 2, x: startX + c*spacing, y: startY + r*spacing, 
-							radius: 3, color: '#fff', name: 'Node',
+							radius: 3, color: '#fff', name: `Node ${r}-${c}`,
 							e_base: 0.3, Y_base: 100, temperature: 293
 						});
 					}
@@ -907,7 +907,7 @@
 					}
 				}
 				
-				sim.addFieldZone(-150, -270, 320, 350, 0, 0.1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
+				sim.addFieldZone(-175, -270, 320, 350, 0, 0.1, 'rgba(10, 200, 20, 0.8)', 'Gravity Field');
 			}
 		},
 		{
