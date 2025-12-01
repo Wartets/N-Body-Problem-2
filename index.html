@@ -336,7 +336,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Elastic Bonds</div>
@@ -355,7 +355,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Solid Barriers</div>
@@ -374,7 +374,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Periodic Zones</div>
@@ -399,7 +399,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Viscosity Zones</div>
@@ -424,7 +424,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Field Zones</div>
@@ -449,7 +449,7 @@
 				</div>
 			</div>
 			
-			<div class="divider"></div>
+			<div class="divider-sub"></div>
 			
 			<div class="control-section">
 				<div class="section-header">Thermal Zones</div>
@@ -470,6 +470,102 @@
 						<button id="toggleThermalZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
 					</div>
 					<div id="thermalZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider-sub"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Annihilation Zones</div>
+				<div class="tool-group" style="display: flex; gap: 5px; align-items: center;">
+					<button id="toggleAnnihilationZoneBtn" class="btn secondary">
+						<i class="fa-solid fa-skull-crossbones"></i> Draw Annihilation (Off)
+					</button>
+					<div id="annihilationZoneShapeSelector" class="btn-group" style="display: none;">
+						<button class="btn secondary active" data-shape="rectangle" title="Rectangle"><i class="fa-solid fa-square"></i></button>
+						<button class="btn secondary" data-shape="circle" title="Circle"><i class="fa-solid fa-circle"></i></button>
+					</div>
+				</div>
+				
+				<div id="annihilationZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="annihilationZonesListHeader">
+						<span>Defined Zones <span id="annihilationZoneListCount">0</span></span>
+						<button id="toggleAnnihilationZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="annihilationZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider-sub"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Chaos Zones</div>
+				<div class="tool-group" style="display: flex; gap: 5px; align-items: center;">
+					<button id="toggleChaosZoneBtn" class="btn secondary">
+						<i class="fa-solid fa-hurricane"></i> Draw Chaos (Off)
+					</button>
+					<div id="chaosZoneShapeSelector" class="btn-group" style="display: none;">
+						<button class="btn secondary active" data-shape="rectangle" title="Rectangle"><i class="fa-solid fa-square"></i></button>
+						<button class="btn secondary" data-shape="circle" title="Circle"><i class="fa-solid fa-circle"></i></button>
+					</div>
+				</div>
+				
+				<div id="chaosZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="chaosZonesListHeader">
+						<span>Defined Zones <span id="chaosZoneListCount">0</span></span>
+						<button id="toggleChaosZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="chaosZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider-sub"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Vortex Zones</div>
+				<div class="tool-group" style="display: flex; gap: 5px; align-items: center;">
+					<button id="toggleVortexZoneBtn" class="btn secondary">
+						<i class="fa-solid fa-fan"></i> Draw Vortex (Off)
+					</button>
+				</div>
+				
+				<div id="vortexZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="vortexZonesListHeader">
+						<span>Defined Zones <span id="vortexZoneListCount">0</span></span>
+						<button id="toggleVortexZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="vortexZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
+					</div>
+				</div>
+			</div>
+			
+			<div class="divider-sub"></div>
+			
+			<div class="control-section">
+				<div class="section-header">Null Zones</div>
+				<div class="tool-group" style="display: flex; gap: 5px; align-items: center;">
+					<button id="toggleNullZoneBtn" class="btn secondary">
+						<i class="fa-solid fa-ban"></i> Draw Null Zone (Off)
+					</button>
+					<div id="nullZoneShapeSelector" class="btn-group" style="display: none;">
+						<button class="btn secondary active" data-shape="rectangle" title="Rectangle"><i class="fa-solid fa-square"></i></button>
+						<button class="btn secondary" data-shape="circle" title="Circle"><i class="fa-solid fa-circle"></i></button>
+					</div>
+				</div>
+				
+				<div id="nullZonesCollapsible" style="display: none;">
+					<div class="divider-sub"></div>
+					<div class="section-header toggle-header" id="nullZonesListHeader">
+						<span>Defined Zones <span id="nullZoneListCount">0</span></span>
+						<button id="toggleNullZonesListBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
+					</div>
+					<div id="nullZonesListContainer" style="display: flex; flex-direction: column; gap: 8px;">
 					</div>
 				</div>
 			</div>

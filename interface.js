@@ -880,6 +880,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		{ id: 'toggleViscosityZoneBtn', mode: 'viscosity', text: 'Draw Viscosity', icon: 'fa-water', shapeSelectorId: 'viscosityZoneShapeSelector' },
 		{ id: 'toggleFieldZoneToolBtn', mode: 'field', text: 'Draw Field', icon: 'fa-arrow-down', shapeSelectorId: 'fieldZoneShapeSelector' },
 		{ id: 'toggleThermalZoneBtn', mode: 'thermal', text: 'Draw Thermal', icon: 'fa-temperature-high', shapeSelectorId: 'thermalZoneShapeSelector' },
+		{ id: 'toggleAnnihilationZoneBtn', mode: 'annihilation', text: 'Draw Annihilation', icon: 'fa-skull-crossbones', shapeSelectorId: 'annihilationZoneShapeSelector' },
+		{ id: 'toggleChaosZoneBtn', mode: 'chaos', text: 'Draw Chaos', icon: 'fa-hurricane', shapeSelectorId: 'chaosZoneShapeSelector' },
+		{ id: 'toggleVortexZoneBtn', mode: 'vortex', text: 'Draw Vortex', icon: 'fa-fan' },
+		{ id: 'toggleNullZoneBtn', mode: 'null', text: 'Draw Null Zone', icon: 'fa-ban', shapeSelectorId: 'nullZoneShapeSelector' },
 		{ id: 'toggleBarrierToolBtn', mode: 'barrier', text: 'Draw Barrier', icon: 'fa-road' },
 		{ id: 'toggleBondToolBtn', mode: 'bond', text: 'Link Bodies', icon: 'fa-link' }
 	];
@@ -1045,6 +1049,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			refreshZoneList();
 			refreshViscosityZoneList();
 			refreshThermalZoneList();
+			refreshAnnihilationZoneList();
+			refreshChaosZoneList();
+			refreshVortexZoneList();
+			refreshNullZoneList();
 			refreshElasticBondList();
 			refreshSolidBarrierList();
 			refreshFieldZoneList();
@@ -2267,6 +2275,173 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
+	function refreshAnnihilationZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('annihilationZonesListContainer'),
+			collapsible: document.getElementById('annihilationZonesCollapsible'),
+			countSpan: document.getElementById('annihilationZoneListCount'),
+			zones: Sim.annihilationZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeAnnihilationZone.bind(Sim),
+			refreshFunc: refreshAnnihilationZoneList,
+			cardConfig: {
+				defaultColor: '#9b59b6',
+				activeId: Render.selectedAnnihilationZoneId,
+				setActiveId: (id) => { Render.selectedAnnihilationZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px; grid-column: span 2;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-particle-burst" ${zone.particleBurst ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+							<span>Particle Burst on Annihilation</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const burstCheckbox = div.querySelector('.inp-particle-burst');
+					burstCheckbox.addEventListener('change', (e) => {
+						zone.particleBurst = e.target.checked;
+					});
+				}
+			}
+		});
+	}
+	
+	function refreshChaosZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('chaosZonesListContainer'),
+			collapsible: document.getElementById('chaosZonesCollapsible'),
+			countSpan: document.getElementById('chaosZoneListCount'),
+			zones: Sim.chaosZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeChaosZone.bind(Sim),
+			refreshFunc: refreshChaosZoneList,
+			cardConfig: {
+				defaultColor: '#f39c12',
+				activeId: Render.selectedChaosZoneId,
+				setActiveId: (id) => { Render.selectedChaosZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Strength</label>
+							<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Frequency</label>
+							<input type="number" class="inp-frequency" value="${zone.frequency.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Scale</label>
+							<input type="number" class="inp-scale" value="${(zone.scale || 20.0).toFixed(1)}" step="1">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength');
+					const freqInp = div.querySelector('.inp-frequency');
+					const scaleInp = div.querySelector('.inp-scale');
+					
+					const handler = () => {
+						zone.strength = parseFloat(strengthInp.value) || 0;
+						zone.frequency = parseFloat(freqInp.value) || 0;
+						zone.scale = parseFloat(scaleInp.value) || 20.0;
+					};
+					
+					strengthInp.addEventListener('change', handler);
+					strengthInp.addEventListener('input', handler);
+					freqInp.addEventListener('change', handler);
+					freqInp.addEventListener('input', handler);
+					scaleInp.addEventListener('change', handler);
+					scaleInp.addEventListener('input', handler);
+					
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+					setupInteractiveLabel(freqInp.previousElementSibling, freqInp);
+					setupInteractiveLabel(scaleInp.previousElementSibling, scaleInp);
+				},
+			}
+		});
+	}
+
+	function refreshVortexZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('vortexZonesListContainer'),
+			collapsible: document.getElementById('vortexZonesCollapsible'),
+			countSpan: document.getElementById('vortexZoneListCount'),
+			zones: Sim.vortexZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeVortexZone.bind(Sim),
+			refreshFunc: refreshVortexZoneList,
+			cardConfig: {
+				defaultColor: '#1abc9c',
+				activeId: Render.selectedVortexZoneId,
+				setActiveId: (id) => { Render.selectedVortexZoneId = id; },
+				fields: [
+					{ label: 'Center X', key: 'x' }, { label: 'Center Y', key: 'y' },
+					{ label: 'Radius', key: 'radius', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Strength</label>
+						<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.1">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength');
+					const handler = () => { zone.strength = parseFloat(strengthInp.value) || 0; };
+					strengthInp.addEventListener('change', handler);
+					strengthInp.addEventListener('input', handler);
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+				},
+			}
+		});
+	}
+
+	function refreshNullZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('nullZonesListContainer'),
+			collapsible: document.getElementById('nullZonesCollapsible'),
+			countSpan: document.getElementById('nullZoneListCount'),
+			zones: Sim.nullZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeNullZone.bind(Sim),
+			refreshFunc: refreshNullZoneList,
+			cardConfig: {
+				defaultColor: '#7f8c8d',
+				activeId: Render.selectedNullZoneId,
+				setActiveId: (id) => { Render.selectedNullZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px; font-size: 10px; gap: 4px;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-g" ${zone.nullifyGravity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Gravity</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-e" ${zone.nullifyElectricity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Electric</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-m" ${zone.nullifyMagnetism ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Magnetic</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					div.querySelector('.inp-null-g').addEventListener('change', (e) => { zone.nullifyGravity = e.target.checked; });
+					div.querySelector('.inp-null-e').addEventListener('change', (e) => { zone.nullifyElectricity = e.target.checked; });
+					div.querySelector('.inp-null-m').addEventListener('change', (e) => { zone.nullifyMagnetism = e.target.checked; });
+				}
+			}
+		});
+	}
+	
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
 		if (!isBatchLoading) {
@@ -2287,6 +2462,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			refreshZoneList();
 			refreshViscosityZoneList();
 			refreshThermalZoneList();
+			refreshAnnihilationZoneList();
+			refreshChaosZoneList();
+			refreshVortexZoneList();
+			refreshNullZoneList();
 			refreshElasticBondList();
 			refreshSolidBarrierList();
 			refreshFieldZoneList();
@@ -2355,16 +2534,15 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	window.App.ui.refreshFieldZones = refreshFieldZoneList;
-	
 	window.App.ui.refreshSolidBarrierList = refreshSolidBarrierList;
-	
 	window.App.ui.refreshElasticBondList = refreshElasticBondList;
-	
 	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
-	
 	window.App.ui.refreshZones = refreshZoneList;
-	
 	window.App.ui.refreshThermalZones = refreshThermalZoneList;
+	window.App.ui.refreshAnnihilationZones = refreshAnnihilationZoneList;
+	window.App.ui.refreshChaosZones = refreshChaosZoneList;
+	window.App.ui.refreshVortexZones = refreshVortexZoneList;
+	window.App.ui.refreshNullZones = refreshNullZoneList;
 	
 	window.App.ui.getBondConfig = function() {
 		const select = document.getElementById('bondPresetSelect');
@@ -2381,6 +2559,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	setupCollapsibleList('fieldDefHeader', 'fieldDefContent', 'toggleFieldDefBtn');
 	setupCollapsibleList('fieldDefListHeader', 'fieldsListContainer', 'toggleFieldDefListBtn');
 	setupCollapsibleList('thermalZonesListHeader', 'thermalZonesListContainer', 'toggleThermalZonesListBtn');
+	setupCollapsibleList('annihilationZonesListHeader', 'annihilationZonesListContainer', 'toggleAnnihilationZonesListBtn');
+	setupCollapsibleList('chaosZonesListHeader', 'chaosZonesListContainer', 'toggleChaosZonesListBtn');
+	setupCollapsibleList('vortexZonesListHeader', 'vortexZonesListContainer', 'toggleVortexZonesListBtn');
+	setupCollapsibleList('nullZonesListHeader', 'nullZonesListContainer', 'toggleNullZonesListBtn');
 	
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');

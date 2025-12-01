@@ -121,6 +121,10 @@ const Simulation = {
 	periodicZones: [],
 	viscosityZones: [],
 	thermalZones: [],
+	annihilationZones: [],
+	chaosZones: [],
+	vortexZones: [],
+	nullZones: [],
 	elasticBonds: [],
 	solidBarriers: [],
 	G: 0.5,
@@ -157,6 +161,10 @@ const Simulation = {
 		this.periodicZones = [];
 		this.viscosityZones = [];
 		this.thermalZones = [];
+		this.annihilationZones = [];
+		this.chaosZones = [];
+		this.vortexZones = [];
+		this.nullZones = [];
 		this.elasticBonds = [];
 		this.solidBarriers = [];
 		this.fieldZones = [];
@@ -192,7 +200,18 @@ const Simulation = {
 			}
 		}
 	},
-
+	
+	seededRandomHash: function(...args) {
+		const str = args.join(',');
+		let hash = 0;
+		for (let i = 0; i < str.length; i++) {
+			const char = str.charCodeAt(i);
+			hash = ((hash << 5) - hash) + char;
+			hash |= 0;
+		}
+		return Math.sin(hash);
+	},
+	
 	addPeriodicZone: function(x, y, w, h, color, type, shape = 'rectangle') {
 		const zone = {
 			id: Date.now() + Math.random(),
@@ -358,14 +377,137 @@ const Simulation = {
 		this.thermalZones = this.thermalZones.filter(z => z.id !== id);
 	},
 	
-	calculateFormulaField: function(x, y) {
+	addAnnihilationZone: function(x, y, w, h, particleBurst, color, shape = 'rectangle') {
+		const zone = {
+			id: Date.now() + Math.random(),
+			name: `Annihilation ${this.annihilationZones.length + 1}`,
+			shape: shape,
+			x: x,
+			y: y,
+			particleBurst: particleBurst || false,
+			color: color || '#9b59b6',
+			enabled: true
+		};
+		if (shape === 'circle') {
+			zone.radius = w;
+		} else {
+			zone.width = w;
+			zone.height = h;
+		}
+		this.annihilationZones.push(zone);
+	},
+	
+	removeAnnihilationZone: function(id) {
+		this.annihilationZones = this.annihilationZones.filter(z => z.id !== id);
+	},
+	
+	addChaosZone: function(x, y, w, h, strength, frequency, color, shape = 'rectangle') {
+		const zone = {
+			id: Date.now() + Math.random(),
+			name: `Chaos ${this.chaosZones.length + 1}`,
+			shape: shape,
+			x: x,
+			y: y,
+			strength: strength || 0.1,
+			frequency: frequency || 1.0,
+			scale: 20.0,
+			seed: Math.random() * 10000,
+			color: color || '#f39c12',
+			enabled: true
+		};
+		if (shape === 'circle') {
+			zone.radius = w;
+		} else {
+			zone.width = w;
+			zone.height = h;
+		}
+		this.chaosZones.push(zone);
+	},
+	
+	removeChaosZone: function(id) {
+		this.chaosZones = this.chaosZones.filter(z => z.id !== id);
+	},
+	
+	addVortexZone: function(x, y, radius, strength, color) {
+		const zone = {
+			id: Date.now() + Math.random(),
+			name: `Vortex ${this.vortexZones.length + 1}`,
+			shape: 'circle',
+			x: x,
+			y: y,
+			radius: radius || 100,
+			strength: strength || 1.0,
+			color: color || '#1abc9c',
+			enabled: true
+		};
+		this.vortexZones.push(zone);
+	},
+	
+	removeVortexZone: function(id) {
+		this.vortexZones = this.vortexZones.filter(z => z.id !== id);
+	},
+	
+	addNullZone: function(x, y, w, h, config, color, shape = 'rectangle') {
+		const zone = {
+			id: Date.now() + Math.random(),
+			name: `Null ${this.nullZones.length + 1}`,
+			shape: shape,
+			x: x,
+			y: y,
+			color: color || '#7f8c8d',
+			enabled: true,
+			nullifyGravity: config ? config.nullifyGravity : true,
+			nullifyElectricity: config ? config.nullifyElectricity : false,
+			nullifyMagnetism: config ? config.nullifyMagnetism : false,
+		};
+		if (shape === 'circle') {
+			zone.radius = w;
+		} else {
+			zone.width = w;
+			zone.height = h;
+		}
+		this.nullZones.push(zone);
+	},
+	
+	removeNullZone: function(id) {
+		this.nullZones = this.nullZones.filter(z => z.id !== id);
+	},
+
+	isBodyInNullZone: function(body, forceType) {
+		for (const z of this.nullZones) {
+			if (!z.enabled) continue;
+			if (
+				(forceType === 'gravity' && !z.nullifyGravity) ||
+				(forceType === 'electricity' && !z.nullifyElectricity) ||
+				(forceType === 'magnetism' && !z.nullifyMagnetism)
+			) continue;
+
+			let isInside = false;
+			if (z.shape === 'circle') {
+				const dx = body.x - z.x;
+				const dy = body.y - z.y;
+				isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
+			} else {
+				isInside = (body.x >= z.x && body.x <= z.x + z.width &&
+							body.y >= z.y && body.y <= z.y + z.height);
+			}
+			if (isInside) return true;
+		}
+		return false;
+	},
+	
+	lerp: function(a, b, t) {
+		return a * (1 - t) + b * t;
+	},
+	
+	calculateFormulaField: function(x, y, time) {
 		let totalEx = 0;
 		let totalEy = 0;
 		const G = this.G;
 		const c = this.c;
 		const Ke = this.Ke;
 		const Km = this.Km;
-		const t = this.tickCount * this.dt;
+		const t = (time !== undefined) ? time : (this.tickCount * this.dt);
 		
 		for (const field of this.formulaFields) {
 			if (!field.enabled || field.errorX || field.errorY) continue;
@@ -452,12 +594,12 @@ const Simulation = {
 		}
 	},
 	
-	computeExternalForces: function(body) {
+	computeExternalForces: function(body, time) {
 		body.ax = body.startAx;
 		body.ay = body.startAy;
 		
 		if (body.charge !== 0) {
-			const field = this.calculateFormulaField(body.x, body.y);
+			const field = this.calculateFormulaField(body.x, body.y, time);
 			body.ax += (body.charge * field.Ex) * body.invMass;
 			body.ay += (body.charge * field.Ey) * body.invMass;
 		}
@@ -482,6 +624,78 @@ const Simulation = {
 			}
 		}
 
+		for (const z of this.chaosZones) {
+			if (!z.enabled) continue;
+			let isInside = false;
+			if (z.shape === 'circle') {
+				const dx = body.x - z.x;
+				const dy = body.y - z.y;
+				isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
+			} else {
+				isInside = (body.x >= z.x && body.x <= z.x + z.width &&
+							body.y >= z.y && body.y <= z.y + z.height);
+			}
+			
+			if (isInside) {
+				const t = (time !== undefined) ? time : (this.tickCount * this.dt);
+				const timeStep = Math.floor(t * z.frequency);
+				const spatialScale = z.scale || 20.0;
+
+				const x_norm = body.x / spatialScale;
+				const y_norm = body.y / spatialScale;
+
+				const x0 = Math.floor(x_norm);
+				const y0 = Math.floor(y_norm);
+
+				const tx = x_norm - x0;
+				const ty = y_norm - y0;
+
+				const smoothTx = tx * tx * (3.0 - 2.0 * tx);
+				const smoothTy = ty * ty * (3.0 - 2.0 * ty);
+
+				const v00x = this.seededRandomHash(z.seed, timeStep, x0, y0);
+				const v00y = this.seededRandomHash(z.seed + 1, timeStep, x0, y0);
+				const v10x = this.seededRandomHash(z.seed, timeStep, x0 + 1, y0);
+				const v10y = this.seededRandomHash(z.seed + 1, timeStep, x0 + 1, y0);
+				const v01x = this.seededRandomHash(z.seed, timeStep, x0, y0 + 1);
+				const v01y = this.seededRandomHash(z.seed + 1, timeStep, x0, y0 + 1);
+				const v11x = this.seededRandomHash(z.seed, timeStep, x0 + 1, y0 + 1);
+				const v11y = this.seededRandomHash(z.seed + 1, timeStep, x0 + 1, y0 + 1);
+
+				const topX = this.lerp(v00x, v10x, smoothTx);
+				const topY = this.lerp(v00y, v10y, smoothTx);
+				const bottomX = this.lerp(v01x, v11x, smoothTx);
+				const bottomY = this.lerp(v01y, v11y, smoothTx);
+
+				const fx = this.lerp(topX, bottomX, smoothTy) * z.strength;
+				const fy = this.lerp(topY, bottomY, smoothTy) * z.strength;
+
+				body.ax += fx;
+				body.ay += fy;
+			}
+		}
+
+		for (const z of this.vortexZones) {
+			if (!z.enabled) continue;
+			const dx = body.x - z.x;
+			const dy = body.y - z.y;
+			const distSq = dx * dx + dy * dy;
+
+			if (distSq > 0 && distSq < z.radius * z.radius) {
+				const dist = Math.sqrt(distSq);
+				const force = z.strength / (dist + 10);
+				
+				const radialPull = -force * 0.5;
+				const tangentialSpeed = force;
+				
+				const ax = (dx / dist) * radialPull - (dy / dist) * tangentialSpeed;
+				const ay = (dy / dist) * radialPull + (dx / dist) * tangentialSpeed;
+
+				body.ax += ax;
+				body.ay += ay;
+			}
+		}
+
 		for (const z of this.fieldZones) {
 			if (!z.enabled) continue;
 			let isInside = false;
@@ -501,7 +715,7 @@ const Simulation = {
 		}
 	},
 	
-	computeBonds: function(bodies, dt) {
+	computeBonds: function(bodies, dt, time) {
 		for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
 			const bond = this.elasticBonds[i];
 			if (!bond.enabled) continue;
@@ -519,7 +733,8 @@ const Simulation = {
 
 			let targetLen = bond.length;
 			if (bond.activeAmp !== 0 && bond.activeFreq !== 0) {
-				const phase = bond.activeFreq * this.tickCount * dt * 0.1;
+				const currentTime = (time !== undefined) ? time : (this.tickCount * this.dt);
+				const phase = bond.activeFreq * currentTime * 0.1;
 				targetLen = bond.length * (1 + bond.activeAmp * Math.sin(phase));
 			}
 
@@ -1082,16 +1297,22 @@ const Simulation = {
 				let f_total = 0;
 	
 				if (enableGrav) {
-					const m2 = b2.mass === -1 ? 1 : b2.mass; 
-					f_total += (G * m1 * m2) * invDistSq;
+					if (!this.isBodyInNullZone(b1, 'gravity') && !this.isBodyInNullZone(b2, 'gravity')) {
+						const m2 = b2.mass === -1 ? 1 : b2.mass; 
+						f_total += (G * m1 * m2) * invDistSq;
+					}
 				}
 	
 				if (enableElec && q1 !== 0 && b2.charge !== 0) {
-					f_total -= (Ke * q1 * b2.charge) * invDistSq;
+					if (!this.isBodyInNullZone(b1, 'electricity') && !this.isBodyInNullZone(b2, 'electricity')) {
+						f_total -= (Ke * q1 * b2.charge) * invDistSq;
+					}
 				}
 	
 				if (enableMag && mag1 !== 0 && b2.magMoment !== 0) {
-					f_total -= (Km * mag1 * b2.magMoment) * (invDistSq * invDist);
+					if (!this.isBodyInNullZone(b1, 'magnetism') && !this.isBodyInNullZone(b2, 'magnetism')) {
+						f_total -= (Km * mag1 * b2.magMoment) * (invDistSq * invDist);
+					}
 				}
 				
 				if (f_total !== 0) {
@@ -1188,16 +1409,17 @@ const Simulation = {
 		const dt = this.dt;
 
 		this.tickCount++;
+		const currentTime = this.tickCount * dt;
 
 		for (let i = 0; i < count; i++) {
 			if (bodies[i].mass === -1) {
 				bodies[i].ax = 0; bodies[i].ay = 0; bodies[i].vx = 0; bodies[i].vy = 0;
 				continue;
 			}
-			this.computeExternalForces(bodies[i]);
+			this.computeExternalForces(bodies[i], currentTime);
 		}
 
-		this.computeBonds(bodies, dt);
+		this.computeBonds(bodies, dt, currentTime);
 		this.computeLongRangeInteractions(bodies);
 		this.computeShortRangeInteractions(bodies);
 
@@ -1216,6 +1438,51 @@ const Simulation = {
 			}
 
 			this.integrateBody(b, dt);
+			
+			let annihilated = false;
+			for (const z of this.annihilationZones) {
+				if (!z.enabled) continue;
+				let isInside = false;
+				if (z.shape === 'circle') {
+					const dx = b.x - z.x;
+					const dy = b.y - z.y;
+					isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
+				} else {
+					isInside = (b.x >= z.x && b.x <= z.x + z.width && b.y >= z.y && b.y <= z.y + z.height);
+				}
+
+				if (isInside) {
+					if (z.particleBurst && b.mass > 0) {
+						const numParticles = Math.max(2, Math.min(10, Math.floor(b.mass / 100)));
+						const particleMass = b.mass / numParticles / 2;
+						const particleRadius = Math.max(1, b.radius / numParticles);
+						const speedBoost = Math.sqrt(b.vx*b.vx + b.vy*b.vy) + 1;
+
+						for (let k = 0; k < numParticles; k++) {
+							const angle = Math.random() * 2 * Math.PI;
+							const speed = (Math.random() * 5 + 1) * speedBoost;
+							this.addBody({
+								x: b.x, y: b.y,
+								vx: b.vx + Math.cos(angle) * speed,
+								vy: b.vy + Math.sin(angle) * speed,
+								mass: particleMass,
+								radius: particleRadius,
+								lifetime: Math.floor(Math.random() * 50) + 20,
+								color: b.color,
+								temperature: b.temperature + 500,
+								e_base: 0.1,
+								friction: 0.1
+							});
+						}
+					}
+					window.App.BodyPool.release(b);
+					bodies.splice(i, 1);
+					count--; i--;
+					annihilated = true;
+					break; 
+				}
+			}
+			if (annihilated) continue;
 			
 			if (this.enableThermodynamics && b.mass > 0 && b.specificHeat > 0) {
 				const A = 4 * Math.PI * b.radius * b.radius;
@@ -1300,21 +1567,23 @@ const Simulation = {
 		
 		const tempBodies = this.bodies.map(b => b.clone());
 		const predictedPath = [];
-		const count = tempBodies.length;
+		let count = tempBodies.length;
+		let currentTargetIndex = bodyIndex;
 		const dt = stepDt;
 		const cellSize = this.cellSize;
 
 		for (let step = 0; step < numSteps; step++) {
+			const predictedTime = (this.tickCount + 1 + step) * dt;
 			for (let i = 0; i < count; i++) {
 				if (tempBodies[i].mass === -1) {
 					tempBodies[i].ax = 0;
 					tempBodies[i].ay = 0;
 					continue;
 				}
-				this.computeExternalForces(tempBodies[i]);
+				this.computeExternalForces(tempBodies[i], predictedTime);
 			}
 
-			this.computeBonds(tempBodies, dt);
+			this.computeBonds(tempBodies, dt, predictedTime);
 
 			const tempGrid = {};
 			for (let i = 0; i < count; i++) {
@@ -1332,17 +1601,51 @@ const Simulation = {
 			this.computeShortRangeInteractions(tempBodies, tempGrid);
 
 			let targetJumped = false;
+			let targetAnnihilated = false;
 
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
 				const wrapped = this.integrateBody(b, dt);
 
-				if (i === bodyIndex && wrapped) {
+				if (i === currentTargetIndex && wrapped) {
 					targetJumped = true;
 				}
+				
+				let annihilated = false;
+				for (const z of this.annihilationZones) {
+					if (!z.enabled) continue;
+					let isInside = false;
+					if (z.shape === 'circle') {
+						const dx = b.x - z.x;
+						const dy = b.y - z.y;
+						isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
+					} else {
+						isInside = (b.x >= z.x && b.x <= z.x + z.width && b.y >= z.y && b.y <= z.y + z.height);
+					}
+
+					if (isInside) {
+						if (i === currentTargetIndex) {
+							targetAnnihilated = true;
+						} else if (i < currentTargetIndex) {
+							currentTargetIndex--;
+						}
+						
+						tempBodies.splice(i, 1);
+						count--;
+						i--;
+						annihilated = true;
+						break;
+					}
+				}
+				if (annihilated) continue;
 			}
 			
-			const targetBody = tempBodies[bodyIndex];
+			if (targetAnnihilated) {
+				break;
+			}
+			
+			const targetBody = tempBodies[currentTargetIndex];
+			if (!targetBody) break;
 			predictedPath.push({ x: targetBody.x, y: targetBody.y, jump: targetJumped });
 		}
 

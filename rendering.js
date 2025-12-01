@@ -43,11 +43,15 @@ const Rendering = {
 	predictionLength: 300,
 
 	drawMode: 'none', 
-	drawShapes: { periodic: 'rectangle', viscosity: 'rectangle', field: 'rectangle', thermal: 'rectangle' },
+	drawShapes: { periodic: 'rectangle', viscosity: 'rectangle', field: 'rectangle', thermal: 'rectangle', annihilation: 'rectangle', chaos: 'rectangle', null: 'rectangle' },
 	selectedZoneId: null,
 	selectedViscosityZoneId: null,
 	selectedThermalZoneId: null,
 	selectedFieldZoneId: null,
+	selectedAnnihilationZoneId: null,
+	selectedChaosZoneId: null,
+	selectedVortexZoneId: null,
+	selectedNullZoneId: null,
 	selectedBondId: null,
 	selectedBarrierId: null,
 	
@@ -128,7 +132,7 @@ const Rendering = {
 			let m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
 			
-			const isDrawing = this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier';
+			const isDrawing = this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null';
 			if (isDrawing) {
 				const shiftPressed = e && e.shiftKey;
 				if (!shiftPressed && this.gridStep > 0) {
@@ -138,7 +142,7 @@ const Rendering = {
 				}
 			}
 
-			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') {
+			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null') {
 				this.tempZoneStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 				this.isDragging = true;
@@ -202,6 +206,7 @@ const Rendering = {
 					this.selectedViscosityZoneId = null;
 					this.selectedFieldZoneId = null;
 					this.selectedThermalZoneId = null;
+					this.selectedAnnihilationZoneId = null;
 					this.selectedBondId = null;
 					this.selectedBarrierId = null;
 					if (window.App.ui) {
@@ -210,6 +215,7 @@ const Rendering = {
 						if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 						if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
 						if (window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
+						if (window.App.ui.refreshAnnihilationZones) window.App.ui.refreshAnnihilationZones();
 						if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
 						if (window.App.ui.refreshSolidBarrierList) window.App.ui.refreshSolidBarrierList();
 					}
@@ -227,6 +233,7 @@ const Rendering = {
 				this.selectedViscosityZoneId = null;
 				this.selectedFieldZoneId = null;
 				this.selectedThermalZoneId = null;
+				this.selectedAnnihilationZoneId = null;
 				this.selectedBondId = null;
 				this.selectedBarrierId = null;
 				
@@ -236,6 +243,7 @@ const Rendering = {
 					if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 					if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
 					if (window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
+					if (window.App.ui.refreshAnnihilationZones) window.App.ui.refreshAnnihilationZones();
 					if (window.App.ui.refreshElasticBondList) window.App.ui.refreshElasticBondList();
 					if (window.App.ui.refreshSolidBarrierList) window.App.ui.refreshSolidBarrierList();
 				}
@@ -279,7 +287,7 @@ const Rendering = {
 			
 			if (!this.isDragging) return;
 
-			const isDrawing = (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier');
+			const isDrawing = (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null');
 			if (isDrawing) {
 				const shiftPressed = e && e.shiftKey;
 				if (!shiftPressed && this.gridStep > 0) {
@@ -289,7 +297,7 @@ const Rendering = {
 				}
 			}
 
-			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart) {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null') && this.tempZoneStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 			} else if (this.drawMode === 'barrier' && this.tempBarrierStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
@@ -333,8 +341,8 @@ const Rendering = {
 
 		const handleEnd = (clientX, clientY) => {
 			this.showCoords = false;
-			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart && this.tempZoneCurrent) {
-				if (this.drawShapes[this.drawMode] === 'circle') {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null') && this.tempZoneStart && this.tempZoneCurrent) {
+				if (this.drawMode === 'vortex' || (this.drawShapes[this.drawMode] === 'circle')) {
 					const cx = this.tempZoneStart.x;
 					const cy = this.tempZoneStart.y;
 					const dx = this.tempZoneCurrent.x - cx;
@@ -354,6 +362,18 @@ const Rendering = {
 						} else if (this.drawMode === 'thermal') {
 							window.App.sim.addThermalZone(cx, cy, radius, 0, null, null, null, 'circle');
 							if (window.App.ui && window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
+						} else if (this.drawMode === 'annihilation') {
+							window.App.sim.addAnnihilationZone(cx, cy, radius, 0, false, null, 'circle');
+							if (window.App.ui && window.App.ui.refreshAnnihilationZones) window.App.ui.refreshAnnihilationZones();
+						} else if (this.drawMode === 'chaos') {
+							window.App.sim.addChaosZone(cx, cy, radius, 0, null, null, null, 'circle');
+							if (window.App.ui && window.App.ui.refreshChaosZones) window.App.ui.refreshChaosZones();
+						} else if (this.drawMode === 'vortex') {
+							window.App.sim.addVortexZone(cx, cy, radius, null, null);
+							if (window.App.ui && window.App.ui.refreshVortexZones) window.App.ui.refreshVortexZones();
+						} else if (this.drawMode === 'null') {
+							window.App.sim.addNullZone(cx, cy, radius, 0, null, null, 'circle');
+							if (window.App.ui && window.App.ui.refreshNullZones) window.App.ui.refreshNullZones();
 						}
 					}
 				} else {
@@ -375,6 +395,15 @@ const Rendering = {
 						} else if (this.drawMode === 'thermal') {
 							window.App.sim.addThermalZone(x, y, w, h);
 							if (window.App.ui && window.App.ui.refreshThermalZones) window.App.ui.refreshThermalZones();
+						} else if (this.drawMode === 'annihilation') {
+							window.App.sim.addAnnihilationZone(x, y, w, h);
+							if (window.App.ui && window.App.ui.refreshAnnihilationZones) window.App.ui.refreshAnnihilationZones();
+						} else if (this.drawMode === 'chaos') {
+							window.App.sim.addChaosZone(x, y, w, h);
+							if (window.App.ui && window.App.ui.refreshChaosZones) window.App.ui.refreshChaosZones();
+						} else if (this.drawMode === 'null') {
+							window.App.sim.addNullZone(x, y, w, h);
+							if (window.App.ui && window.App.ui.refreshNullZones) window.App.ui.refreshNullZones();
 						}
 					}
 				}
@@ -505,9 +534,10 @@ const Rendering = {
 	
 	snapCoords: function(x, y) {
 		if (this.gridStep > 0) {
+			const step = this.gridStep / 8;
 			return {
-				x: Math.round(x / this.gridStep) * this.gridStep,
-				y: Math.round(y / this.gridStep) * this.gridStep
+				x: Math.round(x / step) * step,
+				y: Math.round(y / step) * step
 			};
 		}
 		return { x, y };
@@ -1201,6 +1231,264 @@ const Rendering = {
 		}
 	},
 	
+	drawAnnihilationZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedAnnihilationZoneId);
+			const color = z.color || '#9b59b6';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
+			
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.stroke();
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.fill();
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.fillStyle = color;
+
+			const text = z.name + (z.enabled ? (z.particleBurst ? ' (Burst)' : '') : ' (Off)');
+			if (z.shape === 'circle') {
+				this.drawArcText(text, z.x, z.y, z.radius, color);
+			} else {
+				this.ctx.font = `${10 / this.zoom}px sans-serif`;
+				this.ctx.textAlign = 'left';
+				this.ctx.fillText(text, z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+			}
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'annihilation' && this.tempZoneStart && this.tempZoneCurrent) {
+			this.ctx.strokeStyle = '#9b59b6';
+			this.ctx.fillStyle = 'rgba(155, 89, 182, 0.3)';
+			if (this.drawShapes.annihilation === 'circle') {
+				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
+				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
+				const radius = Math.sqrt(dx*dx + dy*dy);
+				this.ctx.beginPath();
+				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
+				this.ctx.stroke();
+				this.ctx.fill();
+			} else {
+				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+				
+				this.ctx.strokeRect(x, y, w, h);
+				this.ctx.fillRect(x, y, w, h);
+			}
+		}
+	},
+	
+	drawChaosZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedChaosZoneId);
+			const color = z.color || '#f39c12';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
+			
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.stroke();
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.15 : 0.05;
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.fill();
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.fillStyle = color;
+
+			const text = z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)');
+			if (z.shape === 'circle') {
+				this.drawArcText(text, z.x, z.y, z.radius, color);
+			} else {
+				this.ctx.font = `${10 / this.zoom}px sans-serif`;
+				this.ctx.textAlign = 'left';
+				this.ctx.fillText(text, z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+			}
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'chaos' && this.tempZoneStart && this.tempZoneCurrent) {
+			this.ctx.strokeStyle = '#f39c12';
+			this.ctx.fillStyle = 'rgba(243, 156, 18, 0.3)';
+			if (this.drawShapes.chaos === 'circle') {
+				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
+				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
+				const radius = Math.sqrt(dx*dx + dy*dy);
+				this.ctx.beginPath();
+				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
+				this.ctx.stroke();
+				this.ctx.fill();
+			} else {
+				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+				
+				this.ctx.strokeRect(x, y, w, h);
+				this.ctx.fillRect(x, y, w, h);
+			}
+		}
+	},
+
+	drawVortexZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedVortexZoneId);
+			const color = z.color || '#1abc9c';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+			
+			this.ctx.strokeStyle = color;
+			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
+			
+			this.ctx.beginPath();
+			this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			this.ctx.stroke();
+
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			const gradient = this.ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.radius);
+			gradient.addColorStop(0, 'rgba(0,0,0,0)');
+			gradient.addColorStop(1, color);
+			this.ctx.fillStyle = gradient;
+			this.ctx.fill();
+
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.fillStyle = color;
+			const text = z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)');
+			this.drawArcText(text, z.x, z.y, z.radius, color);
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'vortex' && this.tempZoneStart && this.tempZoneCurrent) {
+			this.ctx.strokeStyle = '#1abc9c';
+			const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
+			const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
+			const radius = Math.sqrt(dx*dx + dy*dy);
+			this.ctx.beginPath();
+			this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
+			this.ctx.stroke();
+		}
+	},
+
+	drawNullZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedNullZoneId);
+			const color = z.color || '#7f8c8d';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
+			
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.stroke();
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			this.ctx.beginPath();
+			if (z.shape === 'circle') {
+				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+			} else {
+				this.ctx.rect(z.x, z.y, z.width, z.height);
+			}
+			this.ctx.fill();
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.fillStyle = color;
+
+			const text = z.name + (z.enabled ? '' : ' (Off)');
+			if (z.shape === 'circle') {
+				this.drawArcText(text, z.x, z.y, z.radius, color);
+			} else {
+				this.ctx.font = `${10 / this.zoom}px sans-serif`;
+				this.ctx.textAlign = 'left';
+				this.ctx.fillText(text, z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+			}
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'null' && this.tempZoneStart && this.tempZoneCurrent) {
+			this.ctx.strokeStyle = '#7f8c8d';
+			this.ctx.fillStyle = 'rgba(127, 140, 141, 0.3)';
+			if (this.drawShapes.null === 'circle') {
+				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
+				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
+				const radius = Math.sqrt(dx*dx + dy*dy);
+				this.ctx.beginPath();
+				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
+				this.ctx.stroke();
+				this.ctx.fill();
+			} else {
+				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+				
+				this.ctx.strokeRect(x, y, w, h);
+				this.ctx.fillRect(x, y, w, h);
+			}
+		}
+	},
+	
 	drawSolidBarriers: function(barriers) {
 		this.ctx.lineCap = 'round';
 		for (const b of barriers) {
@@ -1643,6 +1931,10 @@ const Rendering = {
 		this.drawPeriodicZones(window.App.sim.periodicZones);
 		this.drawViscosityZones(window.App.sim.viscosityZones);
 		this.drawThermalZones(window.App.sim.thermalZones);
+		this.drawAnnihilationZones(window.App.sim.annihilationZones);
+		this.drawChaosZones(window.App.sim.chaosZones);
+		this.drawVortexZones(window.App.sim.vortexZones);
+		this.drawNullZones(window.App.sim.nullZones);
 		this.drawFieldZones(window.App.sim.fieldZones);
 		this.drawSolidBarriers(window.App.sim.solidBarriers);
 		this.drawElasticBonds(window.App.sim.elasticBonds);
