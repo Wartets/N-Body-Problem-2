@@ -687,6 +687,9 @@ const Rendering = {
 		let formulaFy = 0;
 
 		const Sim = window.App.sim;
+		const G = Sim.units.sim.G;
+		const Ke = Sim.units.sim.Ke;
+		const Km = Sim.units.sim.Km;
 
 		for (let b of bodies) {
 			const dx = b.x - x;
@@ -699,19 +702,19 @@ const Rendering = {
 			const ny = dy / dist;
 
 			if (this.showGravField && Sim.enableGravity) {
-				const g_strength = (Sim.G * b.mass) / distSq;
+				const g_strength = (G * b.mass) / distSq;
 				gravFx += nx * g_strength;
 				gravFy += ny * g_strength;
 			}
 			
 			if (this.showElecField && Sim.enableElectricity && b.charge !== 0) {
-				const E_strength = (Sim.Ke * b.charge) / distSq;
+				const E_strength = (Ke * b.charge) / distSq;
 				elecFx += nx * E_strength;
 				elecFy += ny * E_strength;
 			}
 			
 			if (this.showMagField && Sim.enableMagnetism && b.magMoment !== 0) {
-				const B_strength = (Sim.Km * b.magMoment) / (distSq * dist);
+				const B_strength = (Km * b.magMoment) / (distSq * dist);
 				magFx += nx * B_strength;
 				magFy += ny * B_strength;
 			}
@@ -777,10 +780,11 @@ const Rendering = {
 		const Sim = window.App.sim;
 		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return;
 
-		let contributingBodies = bodies;
+		const activeBodies = bodies.filter(b => b.active);
+		let contributingBodies = activeBodies;
 		const fieldBodyLimit = 50;
-		if (bodies.length > fieldBodyLimit) {
-			contributingBodies = [...bodies]
+		if (activeBodies.length > fieldBodyLimit) {
+			contributingBodies = [...activeBodies]
 				.sort((a, b) => Math.abs(b.mass) - Math.abs(a.mass))
 				.slice(0, fieldBodyLimit);
 		}
@@ -824,17 +828,14 @@ const Rendering = {
 	
 	drawFieldVector: function(x, y, fx, fy, scale, maxLen, color) {
 		const magSq = fx*fx + fy*fy;
-		if (magSq < 1e-10) return; // Trop petit pour être dessiné
+		if (magSq < 1e-10) return;
 
 		const mag = Math.sqrt(magSq);
 		
-		// Calcul de la longueur visuelle : logarithmique pour gérer les grandes différences d'échelle
-		// On multiplie par scale pour la sensibilité
 		let drawLen = Math.log(1 + mag * scale) * (maxLen * 0.4);
 		
-		// Cap à la taille de la cellule pour éviter le chevauchement
 		if (drawLen > maxLen) drawLen = maxLen;
-		if (drawLen < 2 / this.zoom) return; // Trop petit en pixels
+		if (drawLen < 2 / this.zoom) return;
 
 		const nx = fx / mag;
 		const ny = fy / mag;
@@ -848,7 +849,6 @@ const Rendering = {
 		this.ctx.lineTo(endX, endY);
 		this.ctx.stroke();
 
-		// Taille de la tête adaptée au zoom
 		const headSize = Math.min(drawLen * 0.3, 6 / this.zoom);
 		const angle = Math.atan2(ny, nx);
 
@@ -872,12 +872,17 @@ const Rendering = {
 		let totalMass = 0;
 		let comX = 0; 
 		let comY = 0;
+		let activeBodyCount = 0;
 
 		for (let b of bodies) {
+			if (!b.active) continue;
 			comX += b.x * b.mass;
 			comY += b.y * b.mass;
 			totalMass += b.mass;
+			activeBodyCount++;
 		}
+
+		if (activeBodyCount === 0) return;
 
 		if (totalMass === 0) return;
 
@@ -905,6 +910,7 @@ const Rendering = {
 		this.ctx.lineJoin = 'round';
 
 		for (let b of bodies) {
+			if (!b.active) continue;
 			if (b.path.length < 2) continue;
 
 			this.ctx.strokeStyle = b.color;
@@ -1193,6 +1199,7 @@ const Rendering = {
 		const worldCenterY = (worldTop + worldBottom) / 2;
 		
 		for (const body of bodies) {
+			if (!body.active) continue;
 			if (body.x < worldLeft || body.x > worldRight || body.y < worldTop || body.y > worldBottom) {
 				const angle = Math.atan2(body.y - worldCenterY, body.x - worldCenterX);
 				
@@ -1402,13 +1409,18 @@ const Rendering = {
 		const subStep = step / segments;
 
 		const allBodies = window.App.sim.bodies;
+		const activeBodies = allBodies.filter(b => b.active);
 		const distortionBodyLimit = 25;
-		if (window.App.sim.enableGravity && this.gridDistortion > 0 && allBodies.length > distortionBodyLimit) {
-			this.distortingBodies = [...allBodies]
-				.sort((a, b) => Math.abs(b.mass) - Math.abs(a.mass))
-				.slice(0, distortionBodyLimit);
+		if (window.App.sim.enableGravity && this.gridDistortion > 0) {
+			if (activeBodies.length > distortionBodyLimit) {
+				this.distortingBodies = [...activeBodies]
+					.sort((a, b) => Math.abs(b.mass) - Math.abs(a.mass))
+					.slice(0, distortionBodyLimit);
+			} else {
+				this.distortingBodies = activeBodies;
+			}
 		} else {
-			this.distortingBodies = allBodies;
+			this.distortingBodies = [];
 		}
 
 		this.ctx.lineWidth = 0.8 / this.zoom; 
@@ -1599,6 +1611,8 @@ const Rendering = {
 		for (let i = 0; i < bodies.length; i++) {
 			const b = bodies[i];
 			
+			if (!b.active) continue;
+
 			if (b.x + b.radius < worldLeft || 
 				b.x - b.radius > worldRight || 
 				b.y + b.radius < worldTop || 
@@ -1688,7 +1702,7 @@ const Rendering = {
 		let totalDx = 0;
 		let totalDy = 0;
 		
-		const bodies = (window.App.sim.bodies.length > 50) ? this.distortingBodies : window.App.sim.bodies;
+		const bodies = this.distortingBodies;
 		const count = bodies.length;
 		const limit = 0.85;
 		const minDistSq = this.gridMinDist * this.gridMinDist;

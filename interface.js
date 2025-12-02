@@ -659,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				const dist = Math.sqrt(dx*dx + dy*dy);
 				
 				if (dist > 0.01) {
-					const v = Math.sqrt((Sim.G * totalMass) / dist);
+					const v = Math.sqrt((Sim.units.sim.G * totalMass) / dist);
 					
 					const angle = Math.atan2(dy, dx);
 					const dir = Math.random() > 0.5 ? 1 : -1;
@@ -1456,6 +1456,13 @@ document.addEventListener('DOMContentLoaded', () => {
 			return;
 		}
 
+		if (e.target.closest('.btn-active')) {
+			e.stopPropagation();
+			body.active = !body.active;
+			refreshBodyList();
+			return;
+		}
+
 		if (e.target.closest('.btn-track')) {
 			e.stopPropagation();
 			if (Render.trackedBodyIdx === index) {
@@ -1833,6 +1840,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
 		div.className = 'body-card';
+		if (!body.active) {
+			div.classList.add('inactive');
+		}
 		div.style.borderLeftColor = body.color;
 		div.dataset.index = index;
 		div.setAttribute('draggable', 'true');
@@ -1840,6 +1850,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		const isTracked = Render.trackedBodyIdx === index;
 		const trackBtnClass = isTracked ? 'active' : '';
 		const trackIconClass = isTracked ? 'fa-solid fa-eye' : 'fa-regular fa-eye';
+
+		const isActive = body.active;
+		const activeBtnClass = isActive ? '' : 'inactive-btn';
+		const activeIconClass = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
 
 		let gridHtml = '';
 		bodyProperties.forEach(field => {
@@ -1858,12 +1872,20 @@ document.addEventListener('DOMContentLoaded', () => {
 						<input type="color" class="color-input-hidden" value="${body.color.startsWith('#') ? body.color : '#ffffff'}">
 					</div>
 					<input type="text" class="body-name-input" value="${body.name}">
+					<button class="btn-active btn-icon ${activeBtnClass}" title="Toggle Active State"><i class="fa-solid ${activeIconClass}"></i></button>
 					<button class="btn-track btn-icon ${trackBtnClass}" title="Track Body"><i class="${trackIconClass}"></i></button>
 				</span>
 				<button class="btn-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
 			</div>
 			<div class="card-grid">${gridHtml}</div>
 		`;
+
+		if (!('ontouchstart' in window)) {
+			div.querySelectorAll('.mini-input-group label').forEach(label => {
+				label.style.cursor = 'ew-resize';
+				label.title = "Click and drag to change value. Hold Shift for precision, Ctrl for speed.";
+			});
+		}
 
 		div.addEventListener('dragstart', (e) => {
 			if (e.target !== div) {

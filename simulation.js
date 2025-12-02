@@ -153,6 +153,7 @@ class Body {
 			}
 		});
 
+		this.active = config.active !== undefined ? config.active : true;
 		this.ax = 0;
 		this.ay = 0;
 		this.path = [];
@@ -184,11 +185,52 @@ const Simulation = {
 	elasticBonds: [],
 	solidBarriers: [],
 	fieldZones: [],
-	G: 0.5,
-	c: 50.0,
-	Ke: 10.0,
-	Km: 5.0,
+	
+	T_ambient: 3.0,
 	dt: 0.25,
+	
+	units: {
+		SI: {
+			c: 299792458,				// Speed of light (m/s)
+			h: 6.62607015e-34,			// Planck constant (J⋅s)
+			e: 1.602176634e-19,			// Elementary charge (C)
+			kB: 1.380649e-23,			// Boltzmann constant (J/K)
+			NA: 6.02214076e23,			// Avogadro constant (1/mol)
+			G: 6.67430e-11,				// Gravitational constant (m³/kg⋅s²)
+			alpha: 7.2973525693e-3,		// Fine-structure constant
+
+			get h_bar() { return this.h / (2 * Math.PI); },
+			get Ke() { return (this.alpha * this.h_bar * this.c) / (this.e ** 2); },
+			get epsilon0() { return 1 / (4 * Math.PI * this.Ke); },
+			get mu0() { return 4 * Math.PI * this.Ke / (this.c ** 2); },
+		},
+
+		sim: {
+			c: 50,			// Speed limit
+			G: 0.5,			// Gravity strength
+			h: 1e-15,		// Simulation scale
+			Ke: 10,			// Electric strength
+			kB: 10e-23,		// Thermodynamics scale
+			NA: 6.022e23,	// Amount scale
+			Kcd: 56,		// Luminous intensity scale
+			
+			
+			get sigma() { return (2 * Math.pow(Math.PI, 5) * Math.pow(this.kB, 4)) / (15 * Math.pow(this.h, 3) * Math.pow(this.c, 2)); },
+			get Km() { return this.Ke / (this.c ** 2); },
+			get e() { return window.App.sim.units.SI.e / window.App.sim.units.Q0; },
+		},
+
+		// Scaling Factors (SI = Sim * Factor)
+		get T0() { return Math.sqrt((this.SI.G / this.sim.G * this.SI.h / this.sim.h) / Math.pow(this.SI.c / this.sim.c, 5)); },
+		get L0() { return (this.SI.c * this.T0) / this.sim.c; },
+		get M0() { return (this.sim.G / this.SI.G) * (this.L0**3 / this.T0**2); },
+		get Q0() { return Math.sqrt( (this.sim.Ke / this.SI.Ke) * (this.M0 * this.L0**3) / (this.T0**2) ); },
+		get K0() { return (this.sim.kB / this.SI.kB) * (this.M0 * this.L0**2) / (this.T0**2);},
+		get N0() { return this.sim.NA / this.SI.NA; },
+		get I0() { return this.sim.Kcd; },
+		get A0() { return this.Q0 / this.T0; },
+	},
+
 	paused: true,
 	maxRadius: 0,
 	grid: {},
@@ -297,8 +339,6 @@ const Simulation = {
 	enableMagnetism: false,
 	enableCollision: false,
 	enableThermodynamics: false,
-	T_ambient: 3.0,
-	sigma: 0.0001,
 	
 	formulaFields: [],
 	
@@ -544,10 +584,10 @@ const Simulation = {
 	calculateFormulaField: function(x, y, time) {
 		let totalEx = 0;
 		let totalEy = 0;
-		const G = this.G;
-		const c = this.c;
-		const Ke = this.Ke;
-		const Km = this.Km;
+		const G = this.units.sim.G;
+		const c = this.units.sim.c;
+		const Ke = this.units.sim.Ke;
+		const Km = this.units.sim.Km;
 		const t = (time !== undefined) ? time : (this.tickCount * this.dt);
 		
 		for (const field of this.formulaFields) {
@@ -621,7 +661,7 @@ const Simulation = {
 			
 			const func = new Function('vars', funcBody);
 			
-			const testVars = { x: 1, y: 1, G: 1, c: 1, Ke: 1, Km: 1, t: 0 };
+			const testVars = { x: 1, y: 1, G: this.units.sim.G, c: this.units.sim.c, Ke: this.units.sim.Ke, Km: this.units.sim.Km, t: 0 };
 			const result = func(testVars);
 			
 			if (typeof result !== 'number' || isNaN(result)) {
@@ -766,7 +806,7 @@ const Simulation = {
 			
 			const b1 = bodies[bond.body1];
 			const b2 = bodies[bond.body2];
-			if (!b1 || !b2) continue;
+			if (!b1 || !b2 || !b1.active || !b2.active) continue;
 
 			if (b1.mass === -1 && b2.mass === -1) continue;
 
@@ -1195,15 +1235,15 @@ const Simulation = {
 				if (this.enableGravity) {
 					const m1 = b1.mass === -1 ? 1 : b1.mass; 
 					const m2 = b2.mass === -1 ? 1 : b2.mass; 
-					f_total += (this.G * m1 * m2) / distSq;
+					f_total += (this.units.sim.G * m1 * m2) / distSq;
 				}
 
 				if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-					f_total -= (this.Ke * b1.charge * b2.charge) / distSq;
+					f_total -= (this.units.sim.Ke * b1.charge * b2.charge) / distSq;
 				}
 
 				if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-					f_total -= (this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+					f_total -= (this.units.sim.Km * b1.magMoment * b2.magMoment) / (distSq * distSq);
 				}
 
 				let fx = f_total * nx;
@@ -1237,7 +1277,7 @@ const Simulation = {
 		let vx = b.vx + b.ax * dt;
 		let vy = b.vy + b.ay * dt;
 
-		const c = this.c;
+		const c = this.units.sim.c;
 		const c2 = c * c;
 		const vSq = vx*vx + vy*vy;
 		
@@ -1281,8 +1321,10 @@ const Simulation = {
 	
 		let maxR = 0;
 		for (let i = 0; i < numBodies; i++) {
-			if (bodies[i].radius > maxR) {
-				maxR = bodies[i].radius;
+			const b = bodies[i];
+			if (!b.active) continue;
+			if (b.radius > maxR) {
+				maxR = b.radius;
 			}
 		}
 	
@@ -1291,6 +1333,7 @@ const Simulation = {
 	
 		for (let i = 0; i < numBodies; i++) {
 			const b = bodies[i];
+			if (!b.active) continue;
 			const gridX = Math.floor(b.x / cellSize);
 			const gridY = Math.floor(b.y / cellSize);
 			const key = `${gridX},${gridY}`;
@@ -1305,15 +1348,16 @@ const Simulation = {
 		if (!this.enableGravity && !this.enableElectricity && !this.enableMagnetism) return;
 	
 		const count = bodies.length;
-		const G = this.G;
-		const Ke = this.Ke;
-		const Km = this.Km;
+		const G = this.units.sim.G;
+		const Ke = this.units.sim.Ke;
+		const Km = this.units.sim.Km;
 		const enableGrav = this.enableGravity;
 		const enableElec = this.enableElectricity;
 		const enableMag = this.enableMagnetism;
 
 		for (let i = 0; i < count; i++) {
 			const b1 = bodies[i];
+			if (!b1.active) continue;
 			const m1 = b1.mass === -1 ? 1 : b1.mass;
 			
 			if (m1 === 0 && b1.charge === 0 && b1.magMoment === 0) continue;
@@ -1330,6 +1374,7 @@ const Simulation = {
 
 			for (let j = i + 1; j < count; j++) {
 				const b2 = bodies[j];
+				if (!b2.active) continue;
 				const dx = b2.x - x1;
 				const dy = b2.y - y1;
 				const distSq = dx*dx + dy*dy;
@@ -1393,6 +1438,7 @@ const Simulation = {
 		
 		for (let i = 0; i < count; i++) {
 			const b1 = bodies[i];
+			if (!b1.active) continue;
 			const r1 = b1.radius;
 			const x1 = b1.x;
 			const y1 = b1.y;
@@ -1458,11 +1504,13 @@ const Simulation = {
 		const currentTime = this.tickCount * dt;
 
 		for (let i = 0; i < count; i++) {
-			if (bodies[i].mass === -1) {
-				bodies[i].ax = 0; bodies[i].ay = 0; bodies[i].vx = 0; bodies[i].vy = 0;
+			const b = bodies[i];
+			if (!b.active) continue;
+			if (b.mass === -1) {
+				b.ax = 0; b.ay = 0; b.vx = 0; b.vy = 0;
 				continue;
 			}
-			this.computeExternalForces(bodies[i], currentTime);
+			this.computeExternalForces(b, currentTime);
 		}
 
 		this.computeBonds(bodies, dt, currentTime);
@@ -1471,6 +1519,7 @@ const Simulation = {
 
 		for (let i = 0; i < count; i++) {
 			const b = bodies[i];
+			if (!b.active) continue;
 			
 			if (b.lifetime > 0) {
 				b.lifetime--;
@@ -1537,9 +1586,9 @@ const Simulation = {
 				let P_rad = 0;
 
 				if (this.T_ambient !== -1) {
-					P_rad = this.sigma * A * (Math.pow(b.temperature, 4) - Math.pow(this.T_ambient, 4));
+					P_rad = this.units.sim.sigma * A * (Math.pow(b.temperature, 4) - Math.pow(this.T_ambient, 4));
 				} else {
-					P_rad = this.sigma * A * Math.pow(b.temperature, 4);
+					P_rad = this.units.sim.sigma * A * Math.pow(b.temperature, 4);
 				}
 
 				const dE_wanted = P_rad * dt;
@@ -1613,7 +1662,7 @@ const Simulation = {
 	},
 	
 	predictPath: function(bodyIndex, numSteps, stepDt) {
-		if (!this.bodies[bodyIndex]) return [];
+		if (!this.bodies[bodyIndex] || !this.bodies[bodyIndex].active) return [];
 		
 		const tempBodies = this.bodies.map(b => b.clone());
 		const predictedPath = [];
@@ -1625,12 +1674,15 @@ const Simulation = {
 		for (let step = 0; step < numSteps; step++) {
 			const predictedTime = (this.tickCount + 1 + step) * dt;
 			for (let i = 0; i < count; i++) {
-				if (tempBodies[i].mass === -1) {
-					tempBodies[i].ax = 0;
-					tempBodies[i].ay = 0;
+				const b = tempBodies[i];
+				if (!b.active) continue;
+
+				if (b.mass === -1) {
+					b.ax = 0;
+					b.ay = 0;
 					continue;
 				}
-				this.computeExternalForces(tempBodies[i], predictedTime);
+				this.computeExternalForces(b, predictedTime);
 			}
 
 			this.computeBonds(tempBodies, dt, predictedTime);
@@ -1638,6 +1690,7 @@ const Simulation = {
 			const tempGrid = {};
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
+				if (!b.active) continue;
 				const gridX = Math.floor(b.x / cellSize);
 				const gridY = Math.floor(b.y / cellSize);
 				const key = `${gridX},${gridY}`;
@@ -1655,6 +1708,8 @@ const Simulation = {
 
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
+				if (!b.active) continue;
+
 				const wrapped = this.integrateBody(b, dt);
 
 				if (i === currentTargetIndex && wrapped) {
@@ -1880,7 +1935,7 @@ const Simulation = {
 		let totalMass = 0;
 		let count = 0;
 		for (let b of this.bodies) {
-			if (b.mass !== -1) {
+			if (b.mass !== -1 && b.active) {
 				totalMass += b.mass;
 				count++;
 			}
@@ -1888,7 +1943,7 @@ const Simulation = {
 		if (count === 0) return;
 		const avg = totalMass / count;
 		for (let b of this.bodies) {
-			if (b.mass !== -1) {
+			if (b.mass !== -1 && b.active) {
 				b.mass = avg;
 				b.invMass = 1 / avg;
 			}

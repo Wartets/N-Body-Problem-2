@@ -5,7 +5,7 @@
 
 		window.App.objectPresets = {
 		"Star: Red Giant": (S) => {
-			const m = rnd(60000, 90000) / (S.G * 2);
+			const m = rnd(60000, 90000) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m) * 3,
@@ -26,7 +26,7 @@
 			};
 		},
 		"Star: Yellow Dwarf (Sun)": (S) => {
-			const m = rnd(20000, 30000) / (S.G * 2);
+			const m = rnd(20000, 30000) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m),
@@ -47,7 +47,7 @@
 			};
 		},
 		"Star: White Dwarf": (S) => {
-			const m = rnd(15000, 25000) / (S.G * 2);
+			const m = rnd(15000, 25000) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m) * 0.5,
@@ -68,11 +68,11 @@
 			};
 		},
 		"Star: Neutron": (S) => {
-			const m = rnd(35000, 50000) / (S.G * 2);
+			const m = rnd(35000, 50000) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: 4,
-				charge: rnd(50, 100) / Math.sqrt(S.Ke),
+				charge: rnd(50, 100) / Math.sqrt(S.units.sim.Ke),
 				magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
 				rotationSpeed: rnd(2.0, 5.0),
 				friction: 0.1,
@@ -89,7 +89,7 @@
 			};
 		},
 		"Black Hole (Simulated)": (S) => {
-			const m = rnd(150000, 300000) / (S.G * 2);
+			const m = rnd(150000, 300000) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: 2,
@@ -110,7 +110,7 @@
 			};
 		},
 		"Planet: Gas Giant": (S) => {
-			const m = rnd(1000, 2500) / (S.G * 2);
+			const m = rnd(1000, 2500) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m) * 1.2,
@@ -131,7 +131,7 @@
 			};
 		},
 		"Planet: Rocky (Habitable)": (S) => {
-			const m = rnd(80, 150) / (S.G * 2);
+			const m = rnd(80, 150) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m),
@@ -152,7 +152,7 @@
 			};
 		},
 		"Planet: Molten": (S) => {
-			const m = rnd(60, 120) / (S.G * 2);
+			const m = rnd(60, 120) / (S.units.sim.G * 2);
 			return {
 				mass: m,
 				radius: logRad(m),
@@ -175,7 +175,7 @@
 		"Particle: Electron": (S) => ({
 			mass: 0.5,
 			radius: 2,
-			charge: -20 / Math.sqrt(S.Ke),
+			charge: -20 / Math.sqrt(S.units.sim.Ke),
 			magMoment: 5 / Math.sqrt(S.Km),
 			rotationSpeed: 8.0,
 			friction: 0.0,
@@ -193,7 +193,7 @@
 		"Particle: Proton": (S) => ({
 			mass: 50,
 			radius: 4,
-			charge: 20 / Math.sqrt(S.Ke),
+			charge: 20 / Math.sqrt(S.units.sim.Ke),
 			magMoment: 2 / Math.sqrt(S.Km),
 			rotationSpeed: 1.0,
 			friction: 0.1,
@@ -351,7 +351,7 @@
 					
 					dist += radiusGap + Math.random() * 40;
 					
-					const speed = Math.sqrt((sim.G * starMass) / dist);
+					const speed = Math.sqrt((sim.units.sim.G * starMass) / dist);
 					const x = Math.cos(angle) * dist;
 					const y = Math.sin(angle) * dist;
 					const vx = -Math.sin(angle) * speed;
@@ -377,7 +377,7 @@
 						const moons = Math.floor(Math.random() * 2) + 1;
 						for (let m = 0; m < moons; m++) {
 							const mDist = 25 + m * 12 + Math.random() * 5 + Math.sqrt(mass);
-							const mSpeed = Math.sqrt((sim.G * mass) / mDist);
+							const mSpeed = Math.sqrt((sim.units.sim.G * mass) / mDist);
 							const mAngle = Math.random() * Math.PI * 2;
 							const clockwise = Math.random() > 0.5 ? 1 : -1;
 							
@@ -412,7 +412,7 @@
 				const mass = 15000;
 				const radius = Math.log(mass) * 2;
 				const dist = 400;
-				const v = Math.sqrt((sim.G * mass) / (4 * dist)); 
+				const v = Math.sqrt((sim.units.sim.G * mass) / (4 * dist)); 
 
 				const starProps = {
 					friction: 0.5, rotationSpeed: 0.01, temperature: 5000, e_base: 1.0, 
@@ -428,7 +428,7 @@
 					const asteroidMass = Math.random() * 5 + 1;
 					const astRad = Math.max(2, Math.log(asteroidMass) * 2);
 					
-					const speed = Math.sqrt((sim.G * 2 * mass) / d);
+					const speed = Math.sqrt((sim.units.sim.G * 2 * mass) / d);
 					
 					const x = Math.cos(angle) * d;
 					const y = Math.sin(angle) * d;
@@ -487,7 +487,7 @@
 					for(let i=0; i<numStars; i++) {
 						const angle = Math.random() * Math.PI * 2;
 						const dist = 60 + Math.random() * radius;
-						const velocity = Math.sqrt((sim.G * coreMass) / dist);
+						const velocity = Math.sqrt((sim.units.sim.G * coreMass) / dist);
 						
 						const x = cx + Math.cos(angle) * dist;
 						const y = cy + Math.sin(angle) * dist;
@@ -602,7 +602,7 @@
 				const electronMass = 10;
 				const electronCharge = -10;
 				
-				const force = (sim.Ke * Math.abs(50 * electronCharge)) / (orbitR * orbitR);
+				const force = (sim.units.sim.Ke * Math.abs(50 * electronCharge)) / (orbitR * orbitR);
 				const velocity = Math.sqrt((force * orbitR) / electronMass);
 
 				sim.addBody({
@@ -956,7 +956,7 @@
 
 				const m = 1000;
 				const scale = 200;
-				const vScale = Math.sqrt((sim.G * m) / scale);
+				const vScale = Math.sqrt((sim.units.sim.G * m) / scale);
 				
 				const p1x = 0.97000436 * scale;
 				const p1y = -0.24308753 * scale;
@@ -1027,7 +1027,7 @@
 					const arm = i % arms;
 					const angle = arm * armOffset + (dist / 100) + (Math.random()-0.5)*0.5;
 					
-					const speed = Math.sqrt(sim.G * bhMass / dist);
+					const speed = Math.sqrt(sim.units.sim.G * bhMass / dist);
 					const x = Math.cos(angle) * dist;
 					const y = Math.sin(angle) * dist;
 					const vx = -Math.sin(angle) * speed;
@@ -1056,7 +1056,7 @@
 				const R = 300;
 				
 				const centerMass = M1 + M2;
-				const angularVel = Math.sqrt(sim.G * centerMass / (R*R*R));
+				const angularVel = Math.sqrt(sim.units.sim.G * centerMass / (R*R*R));
 				
 				const x1 = -R * (M2 / centerMass);
 				const x2 = R * (M1 / centerMass);
