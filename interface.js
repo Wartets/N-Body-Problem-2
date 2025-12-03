@@ -2823,6 +2823,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindRange('gridPrecSlider', 'gridPrecVal', Render, 'gridDetail');
 	bindRange('gridDistSlider', 'gridDistVal', Render, 'gridDistortion', true, 2);
 	bindRange('gridMinDistSlider', 'gridMinDistVal', Render, 'gridMinDist');
+	bindRange('fieldPrecSlider', 'fieldPrecVal', Render, 'fieldPrecision');
+	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
+	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
+	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
 	bindToggle('showTrailsBox', Sim, 'showTrails');
 	bindToggle('camTrackingBox', Render, 'enableTracking', (checked) => {if (checked) {Render.trackedBodyIdx = -1;refreshBodyList();}});
 	bindToggle('camAutoZoomBox', Render, 'enableAutoZoom', (checked) => {if (checked) Render.userZoomFactor = 1.0;});
@@ -2835,10 +2839,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindToggle('showElecFieldBox', Render, 'showElecField');
 	bindToggle('showMagFieldBox', Render, 'showMagField');
 	bindToggle('showFormulaFieldBox', Render, 'showFormulaField');
-	bindRange('fieldPrecSlider', 'fieldPrecVal', Render, 'fieldPrecision');
-	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
-	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
-	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
+	bindToggle('physicalColorBox', Sim, 'enablePhysicalColors');
 	
 	initTooltips();
 	initBodySorting();

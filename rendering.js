@@ -738,6 +738,54 @@ const Rendering = {
 		};
 	},
 	
+	getBodyColor: function(b) {
+		if (window.App.sim.enablePhysicalColors) {
+			const vx = b.vx || 0;
+			const vy = b.vy || 0;
+			const v = Math.sqrt(vx*vx + vy*vy);
+			const ax = b.ax || 0;
+			const ay = b.ay || 0;
+			const a = Math.sqrt(ax*ax + ay*ay);
+			const temp = b.temperature || 0;
+			const charge = b.charge || 0;
+			const heatCap = b.specificHeat || 1000;
+			const mass = b.mass || 1;
+			
+			const simC = window.App.sim.units.sim.c || 50;
+			
+			const tRatio = Math.min(1, Math.max(0, temp / 5000));
+			let hue = 240 * (1 - tRatio);
+			
+			if (charge !== 0) {
+				hue -= charge * 15; 
+			}
+			
+			const vRatio = Math.min(1, v / simC);
+			let lightness = 35 + (vRatio * 45); 
+			
+			const stress = Math.min(1, a / 500);
+			let saturation = 100 - (stress * 60);
+			
+			const capRatio = Math.log10(heatCap + 100) / 3.0;
+			saturation *= Math.min(1.2, Math.max(0.5, capRatio));
+			
+			if (mass > 0) {
+				const densityFactor = Math.min(0.15, Math.log10(mass) * 0.03);
+				lightness *= (1 - densityFactor);
+			} else if (mass === -1) {
+				saturation = 10;
+				lightness = 50;
+			}
+			
+			saturation = Math.min(100, Math.max(0, saturation));
+			lightness = Math.min(95, Math.max(5, lightness));
+			hue = (hue % 360 + 360) % 360;
+
+			return `hsl(${hue.toFixed(1)}, ${saturation.toFixed(1)}%, ${lightness.toFixed(1)}%)`;
+		}
+		return b.color;
+	},
+	
 	drawElasticBonds: function(bonds) {
 		const bodies = window.App.sim.bodies;
 		this.ctx.lineCap = 'round';
@@ -913,18 +961,17 @@ const Rendering = {
 			if (!b.active) continue;
 			if (b.path.length < 2) continue;
 
-			this.ctx.strokeStyle = b.color;
+			this.ctx.strokeStyle = this.getBodyColor(b);
 			
+			this.ctx.beginPath();
 			for (let i = 0; i < b.path.length - 1; i++) {
 				const p1 = b.path[i];
 				const p2 = b.path[i+1];
 				
-				this.ctx.beginPath();
-				this.ctx.globalAlpha = (i / b.path.length); 
-				this.ctx.moveTo(p1.x, p1.y);
+				if (i === 0) this.ctx.moveTo(p1.x, p1.y);
 				this.ctx.lineTo(p2.x, p2.y);
-				this.ctx.stroke();
 			}
+			this.ctx.stroke();
 		}
 		this.ctx.globalAlpha = 1.0;
 	},
@@ -1287,7 +1334,7 @@ const Rendering = {
 			this.ctx.translate(indicator.screenX, indicator.screenY);
 			this.ctx.rotate(indicator.angle);
 			
-			this.ctx.fillStyle = indicator.body.color;
+			this.ctx.fillStyle = this.getBodyColor(indicator.body);
 			this.ctx.globalAlpha = 0.6;
 			
 			this.ctx.beginPath();
@@ -1575,76 +1622,14 @@ const Rendering = {
 
 		this.drawGrid();
 
-		this.drawGenericZone(window.App.sim.periodicZones, {
-			selectedId: this.selectedZoneId, defaultColor: '#e67e22', fillAlpha: 0.1,
-			strokeDash: [5 / this.zoom, 5 / this.zoom],
-			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.viscosityZones, {
-			selectedId: this.selectedViscosityZoneId, defaultColor: '#3498db', fillAlpha: 0.2,
-			textFn: (z) => z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.thermalZones, {
-			selectedId: this.selectedThermalZoneId, defaultColor: '#e74c3c', fillAlpha: 0.2,
-			textFn: (z) => z.name + (z.enabled ? ` (${z.temperature}K)` : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.annihilationZones, {
-			selectedId: this.selectedAnnihilationZoneId, defaultColor: '#9b59b6', fillAlpha: 0.2,
-			textFn: (z) => z.name + (z.enabled ? (z.particleBurst ? ' (Burst)' : '') : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.chaosZones, {
-			selectedId: this.selectedChaosZoneId, defaultColor: '#f39c12', fillAlpha: 0.15,
-			textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.vortexZones, {
-			selectedId: this.selectedVortexZoneId, defaultColor: '#1abc9c',
-			textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)'),
-			fillFn: function(z, color, alpha) {
-				const gradient = this.ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.radius);
-				gradient.addColorStop(0, 'rgba(0,0,0,0)');
-				gradient.addColorStop(1, color);
-				this.ctx.fillStyle = gradient;
-				this.ctx.globalAlpha = alpha;
-				this.ctx.fill();
-			}
-		});
-		this.drawGenericZone(window.App.sim.nullZones, {
-			selectedId: this.selectedNullZoneId, defaultColor: '#7f8c8d', fillAlpha: 0.2,
-			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)')
-		});
-		this.drawGenericZone(window.App.sim.fieldZones, {
-			selectedId: this.selectedFieldZoneId, defaultColor: '#27ae60', fillAlpha: 0.15,
-			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)'),
-			extraDrawFn: function(z, bounds) {
-				let cx, cy;
-				if (z.shape === 'circle') {
-					cx = z.x; cy = z.y;
-				} else {
-					cx = bounds.x + bounds.width / 2;
-					cy = bounds.y + bounds.height / 2;
-				}
-				const mag = Math.sqrt(z.fx*z.fx + z.fy*z.fy);
-				if (mag > 0.0001) {
-					let arrowLen;
-					if (z.shape === 'circle') {
-						arrowLen = z.radius * 0.8;
-					} else {
-						arrowLen = Math.min(Math.min(bounds.width, bounds.height) * 0.4, mag * 200);
-					}
-					const nx = z.fx / mag; const ny = z.fy / mag;
-					const endX = cx + nx * arrowLen; const endY = cy + ny * arrowLen;
-					
-					this.ctx.beginPath(); this.ctx.moveTo(cx, cy); this.ctx.lineTo(endX, endY); this.ctx.stroke();
-					
-					const headSize = 5 / this.zoom; const angle = Math.atan2(ny, nx);
-					this.ctx.beginPath(); this.ctx.moveTo(endX, endY);
-					this.ctx.lineTo(endX - headSize * Math.cos(angle - Math.PI/6), endY - headSize * Math.sin(angle - Math.PI/6));
-					this.ctx.moveTo(endX, endY);
-					this.ctx.lineTo(endX - headSize * Math.cos(angle + Math.PI/6), endY - headSize * Math.sin(angle + Math.PI/6));
-					this.ctx.stroke();
-				}
-			}
-		});
+		this.drawGenericZone(window.App.sim.periodicZones, { selectedId: this.selectedZoneId, defaultColor: '#e67e22', fillAlpha: 0.1, strokeDash: [5 / this.zoom, 5 / this.zoom], textFn: (z) => z.name + (z.enabled ? '' : ' (Off)') });
+		this.drawGenericZone(window.App.sim.viscosityZones, { selectedId: this.selectedViscosityZoneId, defaultColor: '#3498db', fillAlpha: 0.2, textFn: (z) => z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)') });
+		this.drawGenericZone(window.App.sim.thermalZones, { selectedId: this.selectedThermalZoneId, defaultColor: '#e74c3c', fillAlpha: 0.2, textFn: (z) => z.name + (z.enabled ? ` (${z.temperature}K)` : ' (Off)') });
+		this.drawGenericZone(window.App.sim.annihilationZones, { selectedId: this.selectedAnnihilationZoneId, defaultColor: '#9b59b6', fillAlpha: 0.2, textFn: (z) => z.name + (z.enabled ? (z.particleBurst ? ' (Burst)' : '') : ' (Off)') });
+		this.drawGenericZone(window.App.sim.chaosZones, { selectedId: this.selectedChaosZoneId, defaultColor: '#f39c12', fillAlpha: 0.15, textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)') });
+		this.drawGenericZone(window.App.sim.vortexZones, { selectedId: this.selectedVortexZoneId, defaultColor: '#1abc9c', textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)'), fillFn: function(z, color, alpha) { const gradient = this.ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.radius); gradient.addColorStop(0, 'rgba(0,0,0,0)'); gradient.addColorStop(1, color); this.ctx.fillStyle = gradient; this.ctx.globalAlpha = alpha; this.ctx.fill(); } });
+		this.drawGenericZone(window.App.sim.nullZones, { selectedId: this.selectedNullZoneId, defaultColor: '#7f8c8d', fillAlpha: 0.2, textFn: (z) => z.name + (z.enabled ? '' : ' (Off)') });
+		this.drawGenericZone(window.App.sim.fieldZones, { selectedId: this.selectedFieldZoneId, defaultColor: '#27ae60', fillAlpha: 0.15, textFn: (z) => z.name + (z.enabled ? '' : ' (Off)'), extraDrawFn: function(z, bounds) { let cx, cy; if (z.shape === 'circle') { cx = z.x; cy = z.y; } else { cx = bounds.x + bounds.width / 2; cy = bounds.y + bounds.height / 2; } const mag = Math.sqrt(z.fx*z.fx + z.fy*z.fy); if (mag > 0.0001) { let arrowLen; if (z.shape === 'circle') { arrowLen = z.radius * 0.8; } else { arrowLen = Math.min(Math.min(bounds.width, bounds.height) * 0.4, mag * 200); } const nx = z.fx / mag; const ny = z.fy / mag; const endX = cx + nx * arrowLen; const endY = cy + ny * arrowLen; this.ctx.beginPath(); this.ctx.moveTo(cx, cy); this.ctx.lineTo(endX, endY); this.ctx.stroke(); const headSize = 5 / this.zoom; const angle = Math.atan2(ny, nx); this.ctx.beginPath(); this.ctx.moveTo(endX, endY); this.ctx.lineTo(endX - headSize * Math.cos(angle - Math.PI/6), endY - headSize * Math.sin(angle - Math.PI/6)); this.ctx.moveTo(endX, endY); this.ctx.lineTo(endX - headSize * Math.cos(angle + Math.PI/6), endY - headSize * Math.sin(angle + Math.PI/6)); this.ctx.stroke(); } } });
 
 		this.drawTempZone();
 		
@@ -1674,16 +1659,28 @@ const Rendering = {
 
 			this.ctx.beginPath();
 			this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-			this.ctx.fillStyle = b.color;
-			
-			if (bodies.length > 50) {
-				this.ctx.fill();
+
+			const color = this.getBodyColor(b);
+			this.ctx.fillStyle = color;
+
+			if (window.App.sim.enablePhysicalColors) {
+				const temp = b.temperature || 0;
+				const mass = (b.mass <= 0) ? 1 : b.mass;
+				const blur = Math.min(30, (mass / 50) + (temp / 100));
 				
-			} else {
-				this.ctx.shadowBlur = 10;
-				this.ctx.shadowColor = b.color;
+				this.ctx.shadowBlur = Math.max(0, blur);
+				this.ctx.shadowColor = color;
 				this.ctx.fill();
 				this.ctx.shadowBlur = 0;
+			} else {
+				if (bodies.length > 50) {
+					this.ctx.fill();
+				} else {
+					this.ctx.shadowBlur = 10;
+					this.ctx.shadowColor = b.color;
+					this.ctx.fill();
+					this.ctx.shadowBlur = 0;
+				}
 			}
 			
 			if (typeof b.angle !== 'undefined') {

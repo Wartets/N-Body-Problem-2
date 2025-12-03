@@ -348,6 +348,7 @@ const Simulation = {
 	tickCount: 0,
 
 	init: function() {
+		this.enablePhysicalColors = false;
 		this.reset();
 		
 		Object.keys(this.objectConfigs).forEach(typeKey => {
