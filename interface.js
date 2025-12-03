@@ -1596,25 +1596,72 @@ document.addEventListener('DOMContentLoaded', () => {
 		const body = Sim.bodies[index];
 		if (!body) return;
 
+		if (input.classList.contains('color-input-hidden')) {
+			const oldValue = body.color;
+			const newValue = input.value;
+			
+			const colorDot = card.querySelector('.body-color-dot');
+			const applyColor = (color) => {
+				body.color = color;
+				if (colorDot) {
+					colorDot.style.backgroundColor = color;
+					colorDot.style.boxShadow = `0 0 5px ${color}`;
+				}
+				card.style.borderLeftColor = color;
+				if (color.startsWith('#')) {
+					input.value = color;
+				}
+			};
+			const action = {
+				execute: () => applyColor(newValue),
+				undo: () => applyColor(oldValue)
+			};
+			window.App.ActionHistory.execute(action);
+			return;
+		}
+
+		const originalValueStr = input.dataset.originalValue;
+		if (originalValueStr === undefined || input.value === originalValueStr) {
+			delete input.dataset.originalValue;
+			return;
+		}
+
 		if (input.classList.contains('body-name-input')) {
-			body.name = input.value;
+			const oldValue = originalValueStr;
+			const newValue = input.value;
+			const action = {
+				execute: () => { body.name = newValue; },
+				undo: () => { body.name = oldValue; }
+			};
+			window.App.ActionHistory.execute(action);
 			return;
 		}
 
 		const key = input.dataset.key;
 		if (key) {
+			const oldValue = parseFloat(originalValueStr);
+			
 			const result = evaluateMathExpression(input.value);
-			if (typeof result === 'number' && parseFloat(input.value) !== result) {
+			if (typeof result === 'number') {
 				input.value = formatVal(result, 4);
 				input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-			} else {
-				const val = parseFloat(input.value);
-				if (!isNaN(val)) {
-					if (body[key] !== val && !(key === 'mass' && val === -1)) {
-						input.value = body[key];
-					}
-				}
 			}
+			
+			const newValue = body[key];
+			
+			if (isNaN(oldValue) || isNaN(newValue) || oldValue === newValue) return;
+
+			const action = {
+				execute: () => {
+					body[key] = newValue;
+					if (key === 'mass') body.invMass = (newValue === -1) ? 0 : 1 / newValue;
+				},
+				undo: () => {
+					body[key] = oldValue;
+					if (key === 'mass') body.invMass = (oldValue === -1) ? 0 : 1 / oldValue;
+				}
+			};
+			window.App.ActionHistory.execute(action);
 		}
 	});
 	
@@ -1879,6 +1926,20 @@ document.addEventListener('DOMContentLoaded', () => {
 			</div>
 			<div class="card-grid">${gridHtml}</div>
 		`;
+		
+		const colorInput = div.querySelector('.color-input-hidden');
+		const colorDot = div.querySelector('.body-color-dot');
+		if (colorInput) {
+			colorInput.addEventListener('input', (e) => {
+				const c = e.target.value;
+				if (colorDot) {
+					colorDot.style.backgroundColor = c;
+					colorDot.style.boxShadow = `0 0 5px ${c}`;
+				}
+				div.style.borderLeftColor = c;
+			});
+			colorInput.addEventListener('click', (e) => e.stopPropagation());
+		}
 
 		if (!('ontouchstart' in window)) {
 			div.querySelectorAll('.mini-input-group label').forEach(label => {
@@ -2511,6 +2572,17 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 			});
 
+			let presetOptions = `<option value="" disabled ${!Object.values(bondPresets).some(p => bond.type === p.type && Math.abs(bond.stiffness - p.stiffness) < 0.001) ? 'selected' : ''} style="display:none;">Custom</option>`;
+			
+			Object.keys(bondPresets).forEach(key => {
+				const p = bondPresets[key];
+				const isMatch = bond.type === p.type && 
+								Math.abs(bond.stiffness - p.stiffness) < 0.001 &&
+								Math.abs(bond.damping - p.damping) < 0.001;
+				
+				presetOptions += `<option value="${key}" ${isMatch ? 'selected' : ''}>${p.name}</option>`;
+			});
+
 			div.innerHTML = `
 				<div class="zone-header">
 					<div style="display: flex; align-items: center; gap: 5px;">
@@ -2532,11 +2604,9 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div class="mini-input-group"><label>Stiffness (k)</label><input type="number" class="inp-bstiff" value="${bond.stiffness.toFixed(2)}" step="0.01"></div>
 					<div class="mini-input-group"><label>Damping</label><input type="number" class="inp-bdamp" value="${bond.damping.toFixed(2)}" step="0.01"></div>
 					<div class="mini-input-group"><label>Length</label><input type="number" class="inp-blen" value="${bond.length.toFixed(1)}" step="1"></div>
-					<div class="mini-input-group"><label>Type</label>
+					<div class="mini-input-group"><label>Preset</label>
 						<select class="inp-btype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
-							<option value="spring" ${bond.type === 'spring' ? 'selected' : ''}>Spring</option>
-							<option value="rope" ${bond.type === 'rope' ? 'selected' : ''}>Rope</option>
-							<option value="chain" ${bond.type === 'chain' ? 'selected' : ''}>Chain</option>
+							${presetOptions}
 						</select>
 					</div>
 				</div>
@@ -2553,8 +2623,8 @@ document.addEventListener('DOMContentLoaded', () => {
 			div.querySelector('.inp-bond-enabled').addEventListener('change', (e) => { bond.enabled = e.target.checked; });
 			div.querySelector('.bond-color').addEventListener('input', (e) => { bond.color = e.target.value; });
 			div.querySelector('.bond-name').addEventListener('change', (e) => { bond.name = e.target.value; });
-			div.querySelector('.inp-btype').addEventListener('change', (e) => { bond.type = e.target.value; });
 			
+			const inpType = div.querySelector('.inp-btype');
 			const inpStiff = div.querySelector('.inp-bstiff');
 			const inpDamp = div.querySelector('.inp-bdamp');
 			const inpLen = div.querySelector('.inp-blen');
@@ -2563,6 +2633,27 @@ document.addEventListener('DOMContentLoaded', () => {
 			const inpAmp = div.querySelector('.inp-bactivea');
 			const inpFreq = div.querySelector('.inp-bactivef');
 			
+			inpType.addEventListener('change', (e) => { 
+				const key = e.target.value;
+				if (bondPresets[key]) {
+					const p = bondPresets[key];
+					bond.type = p.type;
+					bond.stiffness = p.stiffness;
+					bond.damping = p.damping;
+					bond.nonLinearity = p.nonLinearity;
+					bond.breakTension = p.breakTension;
+					bond.activeAmp = p.activeAmp;
+					bond.activeFreq = p.activeFreq;
+					
+					inpStiff.value = bond.stiffness.toFixed(2);
+					inpDamp.value = bond.damping.toFixed(2);
+					inpNonLin.value = bond.nonLinearity.toFixed(2);
+					inpBreak.value = bond.breakTension;
+					inpAmp.value = bond.activeAmp.toFixed(2);
+					inpFreq.value = bond.activeFreq.toFixed(2);
+				}
+			});
+
 			const updateBond = () => {
 				bond.stiffness = Math.max(0, parseFloat(inpStiff.value) || 0);
 				bond.damping = Math.max(0, parseFloat(inpDamp.value) || 0);
@@ -2571,6 +2662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				bond.breakTension = parseFloat(inpBreak.value) || -1;
 				bond.activeAmp = Math.max(0, parseFloat(inpAmp.value) || 0);
 				bond.activeFreq = Math.max(0, parseFloat(inpFreq.value) || 0);
+				inpType.value = "";
 			};
 			
 			[inpStiff, inpDamp, inpLen, inpNonLin, inpBreak, inpAmp, inpFreq].forEach(inp => {

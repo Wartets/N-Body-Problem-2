@@ -1005,10 +1005,60 @@ const Rendering = {
 				if (z.shape === 'circle') {
 					this.drawArcText(text, z.x, z.y, z.radius, color);
 				} else {
-					this.ctx.font = `${10 / this.zoom}px sans-serif`;
+					const fontSize = 10 / this.zoom;
+					this.ctx.font = `${fontSize}px sans-serif`;
 					this.ctx.textAlign = 'left';
-					const textX = (z.width === 'inf') ? worldLeft + 4 / this.zoom : x + 2 / this.zoom;
-					const textY = (z.height === 'inf') ? worldTop + 12 / this.zoom : y - 4 / this.zoom;
+					
+					let textX = (z.width === 'inf') ? worldLeft + 4 / this.zoom : x + 2 / this.zoom;
+					let textY = (z.height === 'inf') ? worldTop + 12 / this.zoom : y - 4 / this.zoom;
+
+					const metrics = this.ctx.measureText(text);
+					const textW = metrics.width;
+					const textH = fontSize;
+					const padding = 2 / this.zoom;
+					
+					let boxTop = textY - textH;
+					let boxBottom = textY + padding;
+					let boxLeft = textX;
+					let boxRight = textX + textW;
+
+					let collision = true;
+					let attempts = 0;
+					const isInfinite = (z.height === 'inf');
+
+					while (collision && attempts < 20) {
+						collision = false;
+						if (this.drawnLabels) {
+							for (const label of this.drawnLabels) {
+								if (boxLeft < label.r && boxRight > label.l &&
+									boxTop < label.b && boxBottom > label.t) {
+									collision = true;
+									break;
+								}
+							}
+						}
+
+						if (collision) {
+							const offset = textH + padding;
+							if (isInfinite) {
+								textY += offset;
+								boxTop += offset;
+								boxBottom += offset;
+							} else {
+								textY -= offset;
+								boxTop -= offset;
+								boxBottom -= offset;
+							}
+							attempts++;
+						}
+					}
+
+					if (this.drawnLabels) {
+						this.drawnLabels.push({
+							l: boxLeft, r: boxRight, t: boxTop, b: boxBottom
+						});
+					}
+					
 					this.ctx.fillText(text, textX, textY);
 				}
 			}
@@ -1020,7 +1070,7 @@ const Rendering = {
 			this.ctx.restore();
 		}
 	},
-
+	
 	drawTempZone: function() {
 		if (!this.tempZoneStart || !this.tempZoneCurrent) return;
 
@@ -1512,6 +1562,8 @@ const Rendering = {
 		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyIdx !== -1) {
 			this.updateAutoCam(window.App.sim.bodies);
 		}
+		
+		this.drawnLabels = [];
 		
 		this.ctx.fillStyle = 'black';
 		this.ctx.fillRect(0, 0, this.width, this.height);
