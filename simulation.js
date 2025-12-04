@@ -203,7 +203,7 @@ window.App.QuadTree = class QuadTree {
 
 		this.bodies.push(body);
 
-		if (this.bodies.length > this.maxBodies && this.depth < 10) {
+		if (this.bodies.length > this.maxBodies && this.depth < 64) {
 			if (this.nodes.length === 0) {
 				this.split();
 			}
@@ -311,7 +311,7 @@ const Simulation = {
 	fieldZones: [],
 	
 	T_ambient: 3.0,
-	fragmentLifetime: 60,
+	fragmentLifetime: 1000,
 	dt: 0.25,
 	
 	useBarnesHut: true,
