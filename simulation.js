@@ -1012,74 +1012,77 @@ const Simulation = {
 		let didWrap = false;
 		for (const z of this.periodicZones) {
 			if (!z.enabled) continue;
+			
+			const offset = (z.type === 'radius') ? b.radius : 0;
 
 			if (z.shape === 'circle') {
 				const dx = b.x - z.x;
 				const dy = b.y - z.y;
-				const dist = Math.sqrt(dx*dx + dy*dy);
+				const distSq = dx*dx + dy*dy;
+				const dist = Math.sqrt(distSq);
 				
 				const prevDx = prevX - z.x;
 				const prevDy = prevY - z.y;
 				const prevDist = Math.sqrt(prevDx*prevDx + prevDy*prevDy);
+				
+				const innerLimit = z.radius - offset;
+				const outerLimit = z.radius + offset;
 
-				const boundaryDist = (z.type === 'radius') ? z.radius - b.radius : z.radius;
-
-				if (boundaryDist > 0 && dist > boundaryDist && prevDist <= boundaryDist) {
-					const nx = dx / dist;
-					const ny = dy / dist;
-
-					if (z.type === 'radius') {
-						const wrapDist = z.radius - b.radius;
-						b.x = z.x - wrapDist * nx;
-						b.y = z.y - wrapDist * ny;
-					} else {
-						b.x -= 2 * dx;
-						b.y -= 2 * dy;
-					}
+				if (prevDist <= innerLimit && dist > innerLimit) {
+					b.x = 2 * z.x - b.x;
+					b.y = 2 * z.y - b.y;
+					didWrap = true;
+				} else if (prevDist >= outerLimit && dist < outerLimit) {
+					b.x = 2 * z.x - b.x;
+					b.y = 2 * z.y - b.y;
 					didWrap = true;
 				}
 			} else {
-				const left = z.x;
-				const right = z.x + z.width;
-				const top = z.y;
-				const bottom = z.y + z.height;
-				const offset = (z.type === 'radius') ? b.radius : 0;
-
-				const inYRange = (z.height === 'inf') || (prevY + offset > top && prevY - offset < bottom);
-				if (z.width !== 'inf' && inYRange) {
-					if (prevX + offset <= right && b.x + offset > right) {
-						if (z.type === 'radius') {
-							b.x = left + b.radius;
-						} else {
-							b.x -= z.width;
+				if (z.width !== 'inf') {
+					const left = z.x;
+					const right = z.x + z.width;
+					const width = z.width;
+					
+					if (b.x > prevX) {
+						if (prevX <= right - offset && b.x > right - offset) {
+							b.x -= (width - 2 * offset);
+							didWrap = true;
+						} else if (prevX <= left - offset && b.x > left - offset) {
+							b.x += (width + 2 * offset);
+							didWrap = true;
 						}
-						didWrap = true;
-					} else if (prevX - offset >= left && b.x - offset < left) {
-						if (z.type === 'radius') {
-							b.x = right - b.radius;
-						} else {
-							b.x += z.width;
+					} else if (b.x < prevX) {
+						if (prevX >= left + offset && b.x < left + offset) {
+							b.x += (width - 2 * offset);
+							didWrap = true;
+						} else if (prevX >= right + offset && b.x < right + offset) {
+							b.x -= (width + 2 * offset);
+							didWrap = true;
 						}
-						didWrap = true;
 					}
 				}
 
-				const inXRange = (z.width === 'inf') || (prevX + offset > left && prevX - offset < right);
-				if (z.height !== 'inf' && inXRange) {
-					if (prevY + offset <= bottom && b.y + offset > bottom) {
-						if (z.type === 'radius') {
-							b.y = top + b.radius;
-						} else {
-							b.y -= z.height;
+				if (z.height !== 'inf') {
+					const top = z.y;
+					const bottom = z.y + z.height;
+					const height = z.height;
+					
+					if (b.y > prevY) {
+						if (prevY <= bottom - offset && b.y > bottom - offset) {
+							b.y -= (height - 2 * offset);
+							didWrap = true;
+						} else if (prevY <= top - offset && b.y > top - offset) {
+							b.y += (height + 2 * offset);
+							didWrap = true;
 						}
-						didWrap = true;
-					} else if (prevY - offset >= top && b.y - offset < top) {
-						if (z.type === 'radius') {
-							b.y = bottom - b.radius;
-						} else {
-							b.y += z.height;
+					} else if (b.y < prevY) {
+						if (prevY >= top + offset && b.y < top + offset) {
+							b.y += (height - 2 * offset);
+							didWrap = true;
+						} else if (prevY >= bottom + offset && b.y < bottom + offset) {
+							b.y -= (height + 2 * offset);
+							didWrap = true;
 						}
-						didWrap = true;
 					}
 				}
 			}
