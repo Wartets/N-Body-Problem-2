@@ -1428,27 +1428,25 @@ const Simulation = {
 			return false;
 		}
 
-		let vx = b.vx + b.ax * dt;
-		let vy = b.vy + b.ay * dt;
+		b.vx += b.ax * 0.5 * dt;
+		b.vy += b.ay * 0.5 * dt;
 
 		const c = this.units.sim.c;
 		const c2 = c * c;
-		const vSq = vx*vx + vy*vy;
+		const vSq = b.vx*b.vx + b.vy*b.vy;
 		
 		if (vSq > c2) {
 			const v = Math.sqrt(vSq);
 			const ratio = (c * 0.999) / v;
-			vx *= ratio;
-			vy *= ratio;
+			b.vx *= ratio;
+			b.vy *= ratio;
 		}
 
 		const prevX = b.x;
 		const prevY = b.y;
 
-		b.x = prevX + vx * dt;
-		b.y = prevY + vy * dt;
-		b.vx = vx;
-		b.vy = vy;
+		b.x = prevX + b.vx * dt;
+		b.y = prevY + b.vy * dt;
 		
 		this.resolveBarriers(b, prevX, prevY);
 		const wrapped = this.resolvePeriodic(b, prevX, prevY);
@@ -1462,6 +1460,24 @@ const Simulation = {
 		}
 
 		return wrapped;
+	},
+	
+	finalizeVelocity: function(b, dt) {
+		if (b.mass === -1) return;
+
+		b.vx += b.ax * 0.5 * dt;
+		b.vy += b.ay * 0.5 * dt;
+
+		const c = this.units.sim.c;
+		const c2 = c * c;
+		const vSq = b.vx*b.vx + b.vy*b.vy;
+
+		if (vSq > c2) {
+			const v = Math.sqrt(vSq);
+			const ratio = (c * 0.999) / v;
+			b.vx *= ratio;
+			b.vy *= ratio;
+		}
 	},
 	
 	updateGrid: function() {
@@ -1830,8 +1846,6 @@ const Simulation = {
 	update: function(force = false) {
 		if (this.paused && !force) return;
 
-		this.updateGrid();
-
 		const bodies = this.bodies;
 		const bodyArray = Object.values(bodies);
 		const dt = this.dt;
@@ -1839,18 +1853,24 @@ const Simulation = {
 		this.tickCount++;
 		this.simTime += dt;
 		const currentTime = this.simTime;
-		
 		const bodiesToRemove = [];
 
 		for (const b of bodyArray) {
 			if (!b.active) continue;
-			
 			if (b.fragCooldown > 0) b.fragCooldown--;
-
+			
 			if (b.mass === -1) {
 				b.ax = 0; b.ay = 0; b.vx = 0; b.vy = 0;
 				continue;
 			}
+			
+			this.integrateBody(b, dt);
+		}
+
+		this.updateGrid();
+
+		for (const b of bodyArray) {
+			if (!b.active || b.mass === -1) continue;
 			this.computeExternalForces(b, currentTime);
 		}
 
@@ -1860,6 +1880,8 @@ const Simulation = {
 
 		for (const b of bodyArray) {
 			if (!b.active) continue;
+
+			this.finalizeVelocity(b, dt);
 			
 			if (b.lifetime > 0) {
 				b.lifetime--;
@@ -1870,8 +1892,6 @@ const Simulation = {
 				continue;
 			}
 
-			this.integrateBody(b, dt);
-			
 			let annihilated = false;
 			for (const z of this.annihilationZones) {
 				if (!z.enabled) continue;
@@ -1881,8 +1901,8 @@ const Simulation = {
 					const dy = b.y - z.y;
 					isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
 				} else {
-					const x_in = (z.width === 'inf') || (body.x >= z.x && body.x <= z.x + z.width);
-					const y_in = (z.height === 'inf') || (body.y >= z.y && body.y <= z.y + z.height);
+					const x_in = (z.width === 'inf') || (b.x >= z.x && b.x <= z.x + z.width);
+					const y_in = (z.height === 'inf') || (b.y >= z.y && b.y <= z.y + z.height);
 					isInside = x_in && y_in;
 				}
 
@@ -1954,7 +1974,7 @@ const Simulation = {
 						isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
 					} else {
 						const x_in = (z.width === 'inf') || (b.x >= z.x && b.x <= z.x + z.width);
-						const y_in = (z.height === 'inf') || (body.y >= z.y && body.y <= z.y + z.height);
+						const y_in = (z.height === 'inf') || (b.y >= z.y && b.y <= z.y + z.height);
 						isInside = x_in && y_in;
 					}
 
@@ -2032,18 +2052,22 @@ const Simulation = {
 				const predictedTime = (this.tickCount + 1 + step) * dt;
 				const tempBodyArray = Object.values(tempBodies);
 
+				let targetJumped = false;
+				let targetAnnihilated = false;
+				let targetFragmented = false;
+
 				for (const b of tempBodyArray) {
 					if (!b.active) continue;
-
 					if (b.mass === -1) {
-						b.ax = 0;
-						b.ay = 0;
+						b.ax = 0; b.ay = 0;
 						continue;
 					}
-					this.computeExternalForces(b, predictedTime);
+					
+					const wrapped = this.integrateBody(b, dt);
+					if (b.id === currentTargetId && wrapped) {
+						targetJumped = true;
+					}
 				}
-
-				this.computeBonds(tempBodies, dt, predictedTime);
 
 				const tempGrid = {};
 				for (const b of tempBodyArray) {
@@ -2056,13 +2080,15 @@ const Simulation = {
 					}
 					tempGrid[key].push(b.id);
 				}
-		
+
+				for (const b of tempBodyArray) {
+					if (!b.active || b.mass === -1) continue;
+					this.computeExternalForces(b, predictedTime);
+				}
+
+				this.computeBonds(tempBodies, dt, predictedTime);
 				this.computeLongRangeInteractions(tempBodies);
 				this.computeShortRangeInteractions(tempBodies, tempGrid);
-
-				let targetJumped = false;
-				let targetAnnihilated = false;
-				let targetFragmented = false;
 
 				if (this.enableFragmentation) {
 					const targetClone = tempBodies[currentTargetId];
@@ -2071,19 +2097,13 @@ const Simulation = {
 					}
 					this.fragmentationQueue.length = 0;
 				}
-				
-				const currentTempBodyArray = Object.values(tempBodies);
+
 				const bodiesToAnnihilate = [];
-
-				for (const b of currentTempBodyArray) {
+				for (const b of tempBodyArray) {
 					if (!b.active) continue;
-
-					const wrapped = this.integrateBody(b, dt);
-
-					if (b.id === currentTargetId && wrapped) {
-						targetJumped = true;
-					}
 					
+					this.finalizeVelocity(b, dt);
+
 					for (const z of this.annihilationZones) {
 						if (!z.enabled) continue;
 						let isInside = false;
