@@ -23,6 +23,7 @@ const Rendering = {
 	enableTracking: false,
 	enableAutoZoom: false,
 	userZoomFactor: 1.0, 
+	trackedBodyId: null,
 
 	gridDetail: 5,
 	gridDistortion: 2,
@@ -35,8 +36,8 @@ const Rendering = {
 	fieldPrecision: 15,
 	fieldScale: 50,
 	
-	selectedBodyIdx: -1,
-	hoveredBodyIdx: -1,
+	selectedBodyId: null,
+	hoveredBodyId: null,
 	dragMode: null, 
 	originalDragState: null,
 	vectorScale: 15,
@@ -131,7 +132,7 @@ const Rendering = {
 
 		const handleStart = (clientX, clientY, e) => {
 			let m = getMouseWorldPos(clientX, clientY);
-			const bodies = window.App.sim.bodies;
+			const bodies = Object.values(window.App.sim.bodies);
 			
 			const isDrawing = this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null';
 			if (isDrawing) {
@@ -164,7 +165,7 @@ const Rendering = {
 					const b = bodies[i];
 					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
 					if (dist < Math.max(b.radius, 15 / this.zoom)) { 
-						this.tempBondStart = i;
+						this.tempBondStart = b.id;
 						this.isDragging = true;
 						this.showCoords = true;
 						return;
@@ -174,9 +175,10 @@ const Rendering = {
 			}
 
 			this.wasPaused = window.App.sim.paused;
+			const simBodies = window.App.sim.bodies;
 
-			if (this.selectedBodyIdx !== -1 && bodies[this.selectedBodyIdx]) {
-				const b = bodies[this.selectedBodyIdx];
+			if (this.selectedBodyId !== null && simBodies[this.selectedBodyId]) {
+				const b = simBodies[this.selectedBodyId];
 				const tipX = b.x + b.vx * this.vectorScale;
 				const tipY = b.y + b.vy * this.vectorScale;
 				const distToTip = Math.sqrt((m.x - tipX)**2 + (m.y - tipY)**2);
@@ -191,19 +193,19 @@ const Rendering = {
 				}
 			}
 
-			let clickedIdx = -1;
+			let clickedId = null;
 			for (let i = bodies.length - 1; i >= 0; i--) {
 				const b = bodies[i];
 				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
 				if (dist < Math.max(b.radius, 15 / this.zoom)) { 
-					clickedIdx = i;
+					clickedId = b.id;
 					break;
 				}
 			}
 
-			if (clickedIdx !== -1) {
-				if (this.selectedBodyIdx !== clickedIdx) {
-					this.selectedBodyIdx = clickedIdx;
+			if (clickedId !== null) {
+				if (this.selectedBodyId !== clickedId) {
+					this.selectedBodyId = clickedId;
 					this.selectedZoneId = null;
 					this.selectedViscosityZoneId = null;
 					this.selectedFieldZoneId = null;
@@ -212,7 +214,7 @@ const Rendering = {
 					this.selectedBondId = null;
 					this.selectedBarrierId = null;
 					if (window.App.ui) {
-						if (window.App.ui.highlightBody) window.App.ui.highlightBody(clickedIdx);
+						if (window.App.ui.highlightBody) window.App.ui.highlightBody(clickedId);
 						if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 						if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 						if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
@@ -223,7 +225,7 @@ const Rendering = {
 					}
 				}
 				
-				const b = bodies[clickedIdx];
+				const b = simBodies[clickedId];
 				this.dragMode = 'body';
 				this.isDragging = true;
 				this.showCoords = true;
@@ -231,7 +233,7 @@ const Rendering = {
 				window.App.sim.paused = true; 
 				
 			} else {
-				this.selectedBodyIdx = -1;
+				this.selectedBodyId = null;
 				this.selectedZoneId = null;
 				this.selectedViscosityZoneId = null;
 				this.selectedFieldZoneId = null;
@@ -241,7 +243,7 @@ const Rendering = {
 				this.selectedBarrierId = null;
 				
 				if (window.App.ui) {
-					if (window.App.ui.highlightBody) window.App.ui.highlightBody(-1);
+					if (window.App.ui.highlightBody) window.App.ui.highlightBody(null);
 					if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 					if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 					if (window.App.ui.refreshFieldZones) window.App.ui.refreshFieldZones();
@@ -262,7 +264,8 @@ const Rendering = {
 		};
 		
 		const handleMove = (clientX, clientY, e) => {
-			const bodies = window.App.sim.bodies;
+			const bodies = Object.values(window.App.sim.bodies);
+			const simBodies = window.App.sim.bodies;
 			let m = getMouseWorldPos(clientX, clientY);
 			this.currentWorldX = m.x;
 			this.currentWorldY = m.y;
@@ -275,7 +278,7 @@ const Rendering = {
 					const b = bodies[i];
 					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
 					if (dist < Math.max(b.radius, 15 / this.zoom)) {
-						this.hoveredBodyIdx = i;
+						this.hoveredBodyId = b.id;
 						this.canvas.style.cursor = 'pointer';
 						foundHover = true;
 						break;
@@ -283,7 +286,7 @@ const Rendering = {
 				}
 			}
 			if (!foundHover) {
-				this.hoveredBodyIdx = -1;
+				this.hoveredBodyId = null;
 				if (!this.isDragging) {
 					this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
 				}
@@ -307,8 +310,8 @@ const Rendering = {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 			} else if (this.drawMode === 'bond' && this.tempBondStart !== null) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
-			} else if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
-				const b = bodies[this.selectedBodyIdx];
+			} else if (this.dragMode === 'body' && this.selectedBodyId !== null) {
+				const b = simBodies[this.selectedBodyId];
 				if (b) {
 					let finalX = m.x;
 					let finalY = m.y;
@@ -327,8 +330,8 @@ const Rendering = {
 					b.y = finalY;
 					b.path = []; 
 				}
-			} else if (this.dragMode === 'vector' && this.selectedBodyIdx !== -1) {
-				const b = bodies[this.selectedBodyIdx];
+			} else if (this.dragMode === 'vector' && this.selectedBodyId !== null) {
+				const b = simBodies[this.selectedBodyId];
 				if (b) {
 					b.vx = (m.x - b.x) / this.vectorScale;
 					b.vy = (m.y - b.y) / this.vectorScale;
@@ -342,7 +345,7 @@ const Rendering = {
 				this.lastMouseY = clientY;
 			}
 		};
-
+		
 		const handleEnd = (clientX, clientY) => {
 			this.showCoords = false;
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'annihilation' || this.drawMode === 'chaos' || this.drawMode === 'vortex' || this.drawMode === 'null') && this.tempZoneStart && this.tempZoneCurrent) {
@@ -430,21 +433,21 @@ const Rendering = {
 			
 			if (this.drawMode === 'bond' && this.tempBondStart !== null) {
 				const m = getMouseWorldPos(clientX, clientY);
-				const bodies = window.App.sim.bodies;
-				let targetIdx = -1;
+				const bodies = Object.values(window.App.sim.bodies);
+				let targetId = -1;
 				
 				for (let i = 0; i < bodies.length; i++) {
 					const b = bodies[i];
 					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
 					if (dist < Math.max(b.radius, 15 / this.zoom)) {
-						targetIdx = i;
+						targetId = b.id;
 						break;
 					}
 				}
 
-				if (targetIdx !== -1 && targetIdx !== this.tempBondStart) {
+				if (targetId !== -1 && targetId !== this.tempBondStart) {
 					const config = window.App.ui && window.App.ui.getBondConfig ? window.App.ui.getBondConfig() : {};
-					window.App.sim.addElasticBond(this.tempBondStart, targetIdx, config);
+					window.App.sim.addElasticBond(this.tempBondStart, targetId, config);
 					if (window.App.ui && window.App.ui.refreshElasticBondList) {
 						window.App.ui.refreshElasticBondList();
 					}
@@ -457,11 +460,11 @@ const Rendering = {
 			}
 
 			if ((this.dragMode === 'body' || this.dragMode === 'vector') && this.isDragging) {
-				const body = window.App.sim.bodies[this.selectedBodyIdx];
+				const body = window.App.sim.bodies[this.selectedBodyId];
 				if (body && this.originalDragState) {
 					const oldState = this.originalDragState;
 					const newState = { x: body.x, y: body.y, vx: body.vx, vy: body.vy };
-					const selectedBodyIdx = this.selectedBodyIdx;
+					const selectedBodyId = this.selectedBodyId;
 
 					const changed = (this.dragMode === 'body' && (oldState.x !== newState.x || oldState.y !== newState.y)) ||
 									(this.dragMode === 'vector' && (oldState.vx !== newState.vx || oldState.vy !== newState.vy));
@@ -469,14 +472,14 @@ const Rendering = {
 					if (changed) {
 						const action = {
 							execute: function() {
-								const b = window.App.sim.bodies[selectedBodyIdx];
+								const b = window.App.sim.bodies[selectedBodyId];
 								if (b) {
 									b.x = newState.x; b.y = newState.y;
 									b.vx = newState.vx; b.vy = newState.vy;
 								}
 							},
 							undo: function() {
-								const b = window.App.sim.bodies[selectedBodyIdx];
+								const b = window.App.sim.bodies[selectedBodyId];
 								if (b) {
 									b.x = oldState.x; b.y = oldState.y;
 									b.vx = oldState.vx; b.vy = oldState.vy;
@@ -594,7 +597,7 @@ const Rendering = {
 			let zoomCenterX = centerX;
 			let zoomCenterY = centerY;
 
-			if (this.enableTracking || this.trackedBodyIdx > -1) {
+			if (this.enableTracking || this.trackedBodyId !== null) {
 				zoomCenterX = this.width / 2;
 				zoomCenterY = this.height / 2;
 			}
@@ -608,16 +611,17 @@ const Rendering = {
 	},
 	
 	updateAutoCam: function(bodies) {
-		if (!bodies.length) return;
+		const bodyArray = Object.values(bodies);
+		if (!bodyArray.length) return;
 
-		let doTracking = this.trackedBodyIdx > -1 || this.enableTracking;
+		let doTracking = this.trackedBodyId !== null || this.enableTracking;
 		
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		let totalMass = 0;
 		let comX = 0; 
 		let comY = 0;
 
-		bodies.forEach(b => {
+		bodyArray.forEach(b => {
 			if (b.x < minX) minX = b.x;
 			if (b.x > maxX) maxX = b.x;
 			if (b.y < minY) minY = b.y;
@@ -633,8 +637,8 @@ const Rendering = {
 		if (doTracking) {
 			let targetX, targetY;
 			
-			if (this.trackedBodyIdx > -1 && bodies[this.trackedBodyIdx]) {
-				const trackedBody = bodies[this.trackedBodyIdx];
+			if (this.trackedBodyId !== null && bodies[this.trackedBodyId]) {
+				const trackedBody = bodies[this.trackedBodyId];
 				targetX = -trackedBody.x * this.zoom;
 				targetY = -trackedBody.y * this.zoom;
 			} else if (this.enableTracking && totalMass > 0) {
@@ -1245,8 +1249,8 @@ const Rendering = {
 
 		let text = `${this.currentWorldX.toFixed(1)}, ${this.currentWorldY.toFixed(1)}`;
 		
-		if (this.dragMode === 'vector' && this.selectedBodyIdx !== -1) {
-			const b = window.App.sim.bodies[this.selectedBodyIdx];
+		if (this.dragMode === 'vector' && this.selectedBodyId !== null) {
+			const b = window.App.sim.bodies[this.selectedBodyId];
 			if (b) {
 				const speed = Math.sqrt(b.vx**2 + b.vy**2);
 				text += `\nSpeed: ${speed.toFixed(2)}`;
@@ -1325,7 +1329,7 @@ const Rendering = {
 	},
 	
 	drawOffScreenIndicators: function() {
-		const bodies = window.App.sim.bodies;
+		const bodies = Object.values(window.App.sim.bodies);
 		if (bodies.length === 0) return;
 		
 		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
@@ -1577,8 +1581,7 @@ const Rendering = {
 		const segments = Math.max(5, Math.floor(this.gridDetail)); 
 		const subStep = step / segments;
 
-		const allBodies = window.App.sim.bodies;
-		const activeBodies = allBodies.filter(b => b.active);
+		const activeBodies = Object.values(window.App.sim.bodies).filter(b => b.active);
 		const distortionBodyLimit = 25;
 		if (window.App.sim.enableGravity && this.gridDistortion > 0) {
 			if (activeBodies.length > distortionBodyLimit) {
@@ -1639,7 +1642,7 @@ const Rendering = {
 	},
 	
 	drawPerformanceIndicator: function() {
-		const bodyCount = window.App.sim.bodies.length;
+		const bodyCount = Object.keys(window.App.sim.bodies).length;
 		const totalSeconds = window.App.sim.simTime;
 		const dt = window.App.sim.dt;
 		
@@ -1771,7 +1774,7 @@ const Rendering = {
 	},
 	
 	draw: function() {
-		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyIdx !== -1) {
+		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyId !== null) {
 			this.updateAutoCam(window.App.sim.bodies);
 		}
 		
@@ -1800,9 +1803,9 @@ const Rendering = {
 		
 		this.drawSolidBarriers(window.App.sim.solidBarriers);
 		this.drawElasticBonds(window.App.sim.elasticBonds);
-		this.drawFields(window.App.sim.bodies);
-		this.drawBarycenter(window.App.sim.bodies);
-		this.drawTrails(window.App.sim.bodies);
+		this.drawFields(Object.values(window.App.sim.bodies));
+		this.drawBarycenter(Object.values(window.App.sim.bodies));
+		this.drawTrails(Object.values(window.App.sim.bodies));
 
 		const bodies = window.App.sim.bodies;
 		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
@@ -1810,8 +1813,8 @@ const Rendering = {
 		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
 		const worldBottom = worldTop + this.height / this.zoom;
 
-		for (let i = 0; i < bodies.length; i++) {
-			const b = bodies[i];
+		for (const id in bodies) {
+			const b = bodies[id];
 			
 			if (!b.active) continue;
 
@@ -1838,7 +1841,7 @@ const Rendering = {
 				this.ctx.fill();
 				this.ctx.shadowBlur = 0;
 			} else {
-				if (bodies.length > 50) {
+				if (Object.keys(bodies).length > 50) {
 					this.ctx.fill();
 				} else {
 					this.ctx.shadowBlur = 10;
@@ -1860,7 +1863,7 @@ const Rendering = {
 				this.ctx.stroke();
 			}
 
-			if (i === this.hoveredBodyIdx && i !== this.selectedBodyIdx) {
+			if (b.id === this.hoveredBodyId && b.id !== this.selectedBodyId) {
 				this.ctx.beginPath();
 				this.ctx.arc(b.x, b.y, b.radius + (4 / this.zoom), 0, Math.PI * 2);
 				this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
@@ -1868,7 +1871,7 @@ const Rendering = {
 				this.ctx.stroke();
 			}
 
-			if (i === this.selectedBodyIdx) {
+			if (b.id === this.selectedBodyId) {
 				this.ctx.beginPath();
 				this.ctx.arc(b.x, b.y, b.radius + (8 / this.zoom), 0, Math.PI * 2);
 				this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
@@ -1890,7 +1893,7 @@ const Rendering = {
 				this.ctx.fillStyle = '#fff';
 				this.ctx.fill();
 
-				const predictionPath = window.App.sim.predictPath(i, this.predictionLength, window.App.sim.dt);
+				const predictionPath = window.App.sim.predictPath(b.id, this.predictionLength, window.App.sim.dt);
 				this.drawPredictionLine(predictionPath);
 			}
 		}

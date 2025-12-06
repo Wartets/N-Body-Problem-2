@@ -134,6 +134,8 @@ class Body {
 	init(config = {}) {
 		const schema = window.App.BodySchema;
 		
+		this.id = config.id !== undefined ? config.id : null;
+
 		Object.keys(schema).forEach(key => {
 			const def = schema[key];
 			const targetKey = def.internal || key;
@@ -298,7 +300,8 @@ window.App.QuadTree = class QuadTree {
 };
 
 const Simulation = {
-	bodies: [],
+	bodies: {},
+	nextBodyId: 0,
 	periodicZones: [],
 	viscosityZones: [],
 	thermalZones: [],
@@ -384,10 +387,10 @@ const Simulation = {
 		},
 		elasticBond: {
 			arrayName: 'elasticBonds', typeName: 'ElasticBond', idPrefix: 'Bond',
-			defaults: function(b1Idx, b2Idx, config = {}, length, damping) {
-				if (b1Idx === b2Idx || b1Idx < 0 || b2Idx < 0 || !this.bodies[b1Idx] || !this.bodies[b2Idx]) return null;
-				const b1 = this.bodies[b1Idx];
-				const b2 = this.bodies[b2Idx];
+			defaults: function(b1Id, b2Id, config = {}, length, damping) {
+				if (b1Id === b2Id || !this.bodies[b1Id] || !this.bodies[b2Id]) return null;
+				const b1 = this.bodies[b1Id];
+				const b2 = this.bodies[b2Id];
 				const dist = Math.sqrt(Math.pow(b2.x - b1.x, 2) + Math.pow(b2.y - b1.y, 2));
 
 				let effectiveConfig = config;
@@ -401,7 +404,7 @@ const Simulation = {
 				const settings = { ...defaults, ...effectiveConfig };
 				if (settings.length < 0) settings.length = dist;
 				
-				return { name: config.name, body1: b1Idx, body2: b2Idx, enabled: true, ...settings };
+				return { name: config.name, body1: b1Id, body2: b2Id, enabled: true, ...settings };
 			}
 		},
 		solidBarrier: {
@@ -489,7 +492,8 @@ const Simulation = {
 	},
 
 	reset: function() {
-		this.bodies = [];
+		this.bodies = {};
+		this.nextBodyId = 0;
 		this.periodicZones = [];
 		this.viscosityZones = [];
 		this.thermalZones = [];
@@ -588,12 +592,15 @@ const Simulation = {
 	},
 	
 	_addBody: function(config) {
-		const newBody = window.App.BodyPool.initBody({
-			name: `Body ${this.bodies.length + 1}`,
-			...config
-		});
-		this.bodies.push(newBody);
-		return this.bodies.length - 1;
+		const id = this.nextBodyId++;
+		const newBodyConfig = {
+			...config,
+			id: id,
+			name: config.name || `Body ${id + 1}`
+		};
+		const newBody = window.App.BodyPool.initBody(newBodyConfig);
+		this.bodies[id] = newBody;
+		return id;
 	},
 
 	addBody: function(config) {
@@ -603,75 +610,67 @@ const Simulation = {
 		}
 
 		const sim = this;
-		let bodyIndex;
+		let bodyId;
 		let fullConfig;
 
 		const action = {
 			execute: function() {
 				const configToUse = fullConfig || config;
-				bodyIndex = sim._addBody(configToUse);
+				bodyId = sim._addBody(configToUse);
 				
 				if (!fullConfig) {
-					fullConfig = { ...sim.bodies[bodyIndex] };
+					fullConfig = { ...sim.bodies[bodyId] };
 				}
 			},
 			undo: function() {
-				sim._removeBody(bodyIndex);
+				sim._removeBody(bodyId);
 			}
 		};
 		window.App.ActionHistory.execute(action);
 	},
 	
-	_removeBody: function(index) {
-		if (index >= 0 && index < this.bodies.length) {
-			const bodyToRemove = this.bodies[index];
+	_removeBody: function(bodyId) {
+		const bodyToRemove = this.bodies[bodyId];
+		if (bodyToRemove) {
 			window.App.BodyPool.release(bodyToRemove);
-			
-			this.bodies.splice(index, 1);
+			delete this.bodies[bodyId];
 			
 			for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
 				const b = this.elasticBonds[i];
-				if (b.body1 === index || b.body2 === index) {
+				if (b.body1 === bodyId || b.body2 === bodyId) {
 					this.elasticBonds.splice(i, 1);
-				} else {
-					if (b.body1 > index) b.body1--;
-					if (b.body2 > index) b.body2--;
 				}
 			}
 		}
 	},
 
-	removeBody: function(index) {
+	removeBody: function(bodyId) {
 		if (window.App.ActionHistory.isExecuting) {
-			this._removeBody(index);
+			this._removeBody(bodyId);
 			return;
 		}
-		if (index < 0 || index >= this.bodies.length) return;
+		if (!this.bodies[bodyId]) return;
 
 		const sim = this;
-		const removedBody = this.bodies[index].clone();
+		const removedBody = this.bodies[bodyId].clone();
 		const removedBonds = [];
-		this.elasticBonds.forEach(b => {
-			if (b.body1 === index || b.body2 === index) {
-				removedBonds.push({ ...b });
+		this.elasticBonds.forEach((b, index) => {
+			if (b.body1 === bodyId || b.body2 === bodyId) {
+				removedBonds.push({ bond: { ...b }, index });
 			}
 		});
 
 		const action = {
 			execute: function() {
-				sim._removeBody(index);
+				sim._removeBody(bodyId);
 			},
 			undo: function() {
-				sim.bodies.splice(index, 0, removedBody);
-
-				for (let i = 0; i < sim.elasticBonds.length; i++) {
-					const b = sim.elasticBonds[i];
-					if (b.body1 >= index) b.body1++;
-					if (b.body2 >= index) b.body2++;
-				}
+				sim.bodies[bodyId] = removedBody;
 				
-				removedBonds.forEach(bondConfig => {
-					sim.elasticBonds.push(bondConfig);
+				removedBonds.sort((a, b) => a.index - b.index);
+				
+				removedBonds.forEach(item => {
+					sim.elasticBonds.splice(item.index, 0, item.bond);
 				});
 			}
 		};
@@ -1369,11 +1368,12 @@ const Simulation = {
 	},
 	
 	computeInteractions: function(bodies) {
-		const count = bodies.length;
+		const bodyArray = Object.values(bodies);
+		const count = bodyArray.length;
 		for (let i = 0; i < count; i++) {
 			for (let j = i + 1; j < count; j++) {
-				const b1 = bodies[i];
-				const b2 = bodies[j];
+				const b1 = bodyArray[i];
+				const b2 = bodyArray[j];
 
 				const dx = b2.x - b1.x;
 				const dy = b2.y - b1.y;
@@ -1466,8 +1466,8 @@ const Simulation = {
 	
 	updateGrid: function() {
 		this.grid = {};
-		const bodies = this.bodies;
-		const numBodies = bodies.length;
+		const bodyArray = Object.values(this.bodies);
+		const numBodies = bodyArray.length;
 		if (numBodies === 0) {
 			this.cellSize = 50;
 			return;
@@ -1475,7 +1475,7 @@ const Simulation = {
 	
 		let maxR = 0;
 		for (let i = 0; i < numBodies; i++) {
-			const b = bodies[i];
+			const b = bodyArray[i];
 			if (!b.active) continue;
 			if (b.radius > maxR) {
 				maxR = b.radius;
@@ -1486,7 +1486,7 @@ const Simulation = {
 		const cellSize = this.cellSize;
 	
 		for (let i = 0; i < numBodies; i++) {
-			const b = bodies[i];
+			const b = bodyArray[i];
 			if (!b.active) continue;
 			const gridX = Math.floor(b.x / cellSize);
 			const gridY = Math.floor(b.y / cellSize);
@@ -1494,13 +1494,14 @@ const Simulation = {
 			if (!this.grid[key]) {
 				this.grid[key] = [];
 			}
-			this.grid[key].push(i);
+			this.grid[key].push(b.id);
 		}
 	},
 	
 	computeLongRangeInteractions: function(bodies) {
 		if (!this.enableGravity && !this.enableElectricity && !this.enableMagnetism) return;
 
+		const bodyArray = Object.values(bodies);
 		const G = this.units.sim.G;
 		const Ke = this.units.sim.Ke;
 		const Km = this.units.sim.Km;
@@ -1512,7 +1513,7 @@ const Simulation = {
 
 		if (this.useBarnesHut) {
 			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-			for (const b of bodies) {
+			for (const b of bodyArray) {
 				if (!b.active) continue;
 				if (b.x < minX) minX = b.x;
 				if (b.x > maxX) maxX = b.x;
@@ -1526,7 +1527,7 @@ const Simulation = {
 			const size = Math.max(w, h);
 			
 			this.quadTree = new window.App.QuadTree(minX - padding, minY - padding, size, size);
-			for (const b of bodies) {
+			for (const b of bodyArray) {
 				if (b.active && (b.mass !== 0 || b.charge !== 0 || b.magMoment !== 0)) {
 					this.quadTree.insert(b);
 				}
@@ -1611,15 +1612,15 @@ const Simulation = {
 				}
 			};
 
-			for (const b1 of bodies) {
+			for (const b1 of bodyArray) {
 				if (!b1.active || b1.mass === -1) continue;
 				processNode(b1, this.quadTree);
 			}
 
 		} else {
-			const count = bodies.length;
+			const count = bodyArray.length;
 			for (let i = 0; i < count; i++) {
-				const b1 = bodies[i];
+				const b1 = bodyArray[i];
 				if (!b1.active) continue;
 				const m1 = b1.mass === -1 ? 1 : b1.mass;
 				if (m1 === 0 && b1.charge === 0 && b1.magMoment === 0) continue;
@@ -1635,7 +1636,7 @@ const Simulation = {
 				let fy1 = 0;
 
 				for (let j = i + 1; j < count; j++) {
-					const b2 = bodies[j];
+					const b2 = bodyArray[j];
 					if (!b2.active) continue;
 					const dx = b2.x - x1;
 					const dy = b2.y - y1;
@@ -1716,10 +1717,11 @@ const Simulation = {
 		
 		const activeGrid = grid || this.grid;
 		const cellSize = this.cellSize;
-		const count = bodies.length;
+		const bodyArray = Object.values(bodies);
+		const count = bodyArray.length;
 		
 		for (let i = 0; i < count; i++) {
-			const b1 = bodies[i];
+			const b1 = bodyArray[i];
 			if (!b1.active) continue;
 			const r1 = b1.radius;
 			const x1 = b1.x;
@@ -1735,10 +1737,10 @@ const Simulation = {
 					if (cell) {
 						const cellLen = cell.length;
 						for (let k = 0; k < cellLen; k++) {
-							const j = cell[k];
-							if (i >= j) continue;
+							const b2_id = cell[k];
+							if (b1.id >= b2_id) continue;
 							
-							const b2 = bodies[j];
+							const b2 = bodies[b2_id];
 							const dx = b2.x - x1;
 							const dy = b2.y - y1;
 							const distSq = dx*dx + dy*dy;
@@ -1783,8 +1785,8 @@ const Simulation = {
 			if (!b.active) continue;
 			if (b.fragCooldown > 0) continue; 
 			
-			const idx = this.bodies.indexOf(b);
-			if (idx === -1) continue;
+			const id = b.id;
+			if (!this.bodies[id]) continue;
 
 			if (b.mass > 1) {
 				const numFragments = Math.max(2, Math.min(5, Math.floor(Math.log(b.mass))));
@@ -1821,7 +1823,7 @@ const Simulation = {
 				}
 			}
 			
-			this._removeBody(idx);
+			this._removeBody(id);
 		}
 	},
 	
@@ -1831,15 +1833,16 @@ const Simulation = {
 		this.updateGrid();
 
 		const bodies = this.bodies;
-		let count = bodies.length;
+		const bodyArray = Object.values(bodies);
 		const dt = this.dt;
 
 		this.tickCount++;
 		this.simTime += dt;
 		const currentTime = this.simTime;
+		
+		const bodiesToRemove = [];
 
-		for (let i = 0; i < count; i++) {
-			const b = bodies[i];
+		for (const b of bodyArray) {
 			if (!b.active) continue;
 			
 			if (b.fragCooldown > 0) b.fragCooldown--;
@@ -1855,8 +1858,7 @@ const Simulation = {
 		this.computeLongRangeInteractions(bodies);
 		this.computeShortRangeInteractions(bodies);
 
-		for (let i = 0; i < count; i++) {
-			const b = bodies[i];
+		for (const b of bodyArray) {
 			if (!b.active) continue;
 			
 			if (b.lifetime > 0) {
@@ -1864,9 +1866,7 @@ const Simulation = {
 			}
 			
 			if (b.lifetime === 0) {
-				window.App.BodyPool.release(b);
-				bodies.splice(i, 1);
-				count--; i--;
+				bodiesToRemove.push(b.id);
 				continue;
 			}
 
@@ -1881,8 +1881,8 @@ const Simulation = {
 					const dy = b.y - z.y;
 					isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
 				} else {
-					const x_in = (z.width === 'inf') || (b.x >= z.x && b.x <= z.x + z.width);
-					const y_in = (z.height === 'inf') || (b.y >= z.y && b.y <= z.y + z.height);
+					const x_in = (z.width === 'inf') || (body.x >= z.x && body.x <= z.x + z.width);
+					const y_in = (z.height === 'inf') || (body.y >= z.y && body.y <= z.y + z.height);
 					isInside = x_in && y_in;
 				}
 
@@ -1910,9 +1910,7 @@ const Simulation = {
 							});
 						}
 					}
-					window.App.BodyPool.release(b);
-					bodies.splice(i, 1);
-					count--; i--;
+					bodiesToRemove.push(b.id);
 					annihilated = true;
 					break; 
 				}
@@ -1956,7 +1954,7 @@ const Simulation = {
 						isInside = (dx * dx + dy * dy) <= (z.radius * z.radius);
 					} else {
 						const x_in = (z.width === 'inf') || (b.x >= z.x && b.x <= z.x + z.width);
-						const y_in = (z.height === 'inf') || (b.y >= z.y && b.y <= z.y + z.height);
+						const y_in = (z.height === 'inf') || (body.y >= z.y && body.y <= z.y + z.height);
 						isInside = x_in && y_in;
 					}
 
@@ -1996,20 +1994,33 @@ const Simulation = {
 			}
 		}
 
-		this.maxRadius = bodies.reduce((max, b) => Math.max(max, Math.sqrt(b.x*b.x + b.y*b.y)), 0);
+		if (bodiesToRemove.length > 0) {
+			for (const id of bodiesToRemove) {
+				const bodyToRemove = this.bodies[id];
+				if (bodyToRemove) {
+					window.App.BodyPool.release(bodyToRemove);
+					delete this.bodies[id];
+				}
+			}
+		}
+
+		this.maxRadius = Object.values(this.bodies).reduce((max, b) => Math.max(max, Math.sqrt(b.x*b.x + b.y*b.y)), 0);
 
 		if (this.enableFragmentation) {
 			this.processFragmentationQueue();
 		}
 	},
 	
-	predictPath: function(bodyIndex, numSteps, stepDt) {
-		if (!this.bodies[bodyIndex] || !this.bodies[bodyIndex].active) return [];
+	predictPath: function(bodyId, numSteps, stepDt) {
+		if (!this.bodies[bodyId] || !this.bodies[bodyId].active) return [];
 		
-		const tempBodies = this.bodies.map(b => b.clone());
+		const tempBodies = {};
+		for (const id in this.bodies) {
+			tempBodies[id] = this.bodies[id].clone();
+		}
+
 		const predictedPath = [];
-		let count = tempBodies.length;
-		let currentTargetIndex = bodyIndex;
+		let currentTargetId = bodyId;
 		const dt = stepDt;
 		const cellSize = this.cellSize;
 
@@ -2019,8 +2030,9 @@ const Simulation = {
 		try {
 			for (let step = 0; step < numSteps; step++) {
 				const predictedTime = (this.tickCount + 1 + step) * dt;
-				for (let i = 0; i < count; i++) {
-					const b = tempBodies[i];
+				const tempBodyArray = Object.values(tempBodies);
+
+				for (const b of tempBodyArray) {
 					if (!b.active) continue;
 
 					if (b.mass === -1) {
@@ -2034,8 +2046,7 @@ const Simulation = {
 				this.computeBonds(tempBodies, dt, predictedTime);
 
 				const tempGrid = {};
-				for (let i = 0; i < count; i++) {
-					const b = tempBodies[i];
+				for (const b of tempBodyArray) {
 					if (!b.active) continue;
 					const gridX = Math.floor(b.x / cellSize);
 					const gridY = Math.floor(b.y / cellSize);
@@ -2043,7 +2054,7 @@ const Simulation = {
 					if (!tempGrid[key]) {
 						tempGrid[key] = [];
 					}
-					tempGrid[key].push(i);
+					tempGrid[key].push(b.id);
 				}
 		
 				this.computeLongRangeInteractions(tempBodies);
@@ -2054,24 +2065,25 @@ const Simulation = {
 				let targetFragmented = false;
 
 				if (this.enableFragmentation) {
-					const targetClone = tempBodies[currentTargetIndex];
+					const targetClone = tempBodies[currentTargetId];
 					if (this.fragmentationQueue.includes(targetClone)) {
 						targetFragmented = true;
 					}
 					this.fragmentationQueue.length = 0;
 				}
+				
+				const currentTempBodyArray = Object.values(tempBodies);
+				const bodiesToAnnihilate = [];
 
-				for (let i = 0; i < count; i++) {
-					const b = tempBodies[i];
+				for (const b of currentTempBodyArray) {
 					if (!b.active) continue;
 
 					const wrapped = this.integrateBody(b, dt);
 
-					if (i === currentTargetIndex && wrapped) {
+					if (b.id === currentTargetId && wrapped) {
 						targetJumped = true;
 					}
 					
-					let annihilated = false;
 					for (const z of this.annihilationZones) {
 						if (!z.enabled) continue;
 						let isInside = false;
@@ -2086,41 +2098,40 @@ const Simulation = {
 						}
 
 						if (isInside) {
-							if (i === currentTargetIndex) {
+							if (b.id === currentTargetId) {
 								targetAnnihilated = true;
-							} else if (i < currentTargetIndex) {
-								currentTargetIndex--;
 							}
-							
-							tempBodies.splice(i, 1);
-							count--;
-							i--;
-							annihilated = true;
+							bodiesToAnnihilate.push(b.id);
 							break;
 						}
 					}
-					if (annihilated) continue;
+				}
+
+				if (bodiesToAnnihilate.length > 0) {
+					for (const id of bodiesToAnnihilate) {
+						delete tempBodies[id];
+					}
 				}
 				
 				if (targetFragmented || targetAnnihilated) {
 					break;
 				}
 				
-				const targetBody = tempBodies[currentTargetIndex];
+				const targetBody = tempBodies[currentTargetId];
 				if (!targetBody) break;
 				predictedPath.push({ x: targetBody.x, y: targetBody.y, jump: targetJumped });
 			}
 		} finally {
 			this.fragmentationQueue = originalQueue;
 		}
-
-		tempBodies.forEach(b => window.App.BodyPool.release(b));
+		
+		Object.values(tempBodies).forEach(b => window.App.BodyPool.release(b));
 
 		return predictedPath;
 	},
 	
 	_zeroVelocities: function() {
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			b.vx = 0;
 			b.vy = 0;
 			b.path = [];
@@ -2133,24 +2144,30 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalStates = this.bodies.map(b => ({ vx: b.vx, vy: b.vy, path: [...b.path] }));
+		const originalStates = {};
+		for (const id in this.bodies) {
+			const b = this.bodies[id];
+			originalStates[id] = { vx: b.vx, vy: b.vy, path: [...b.path] };
+		}
+
 		const action = {
 			execute: () => sim._zeroVelocities(),
 			undo: () => {
-				sim.bodies.forEach((b, i) => {
-					if (originalStates[i]) {
-						b.vx = originalStates[i].vx;
-						b.vy = originalStates[i].vy;
-						b.path = originalStates[i].path;
+				for (const id in sim.bodies) {
+					if (originalStates[id]) {
+						const b = sim.bodies[id];
+						b.vx = originalStates[id].vx;
+						b.vy = originalStates[id].vy;
+						b.path = originalStates[id].path;
 					}
-				});
+				}
 			}
 		};
 		window.App.ActionHistory.execute(action);
 	},
 	
 	_reverseTime: function() {
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			b.vx = -b.vx;
 			b.vy = -b.vy;
 			b.path = [];
@@ -2171,15 +2188,16 @@ const Simulation = {
 	},
 	
 	_cullDistant: function(minX, maxX, minY, maxY) {
-		const indicesToRemove = [];
-		this.bodies.forEach((b, index) => {
+		const idsToRemove = [];
+		for (const id in this.bodies) {
+			const b = this.bodies[id];
 			if (!(b.x >= minX && b.x <= maxX && b.y >= minY && b.y <= maxY)) {
-				indicesToRemove.push(index);
+				idsToRemove.push(id);
 			}
-		});
+		}
 
-		for (let i = indicesToRemove.length - 1; i >= 0; i--) {
-			this._removeBody(indicesToRemove[i]);
+		for (const id of idsToRemove) {
+			this._removeBody(id);
 		}
 	},
 
@@ -2189,7 +2207,10 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalBodies = this.bodies.map(b => b.clone());
+		const originalBodies = {};
+		for (const id in this.bodies) {
+			originalBodies[id] = this.bodies[id].clone();
+		}
 		const originalBonds = this.elasticBonds.map(b => ({ ...b }));
 
 		const action = {
@@ -2197,7 +2218,7 @@ const Simulation = {
 				sim._cullDistant(minX, maxX, minY, maxY);
 			},
 			undo: () => {
-				sim.bodies.forEach(b => window.App.BodyPool.release(b));
+				Object.values(sim.bodies).forEach(b => window.App.BodyPool.release(b));
 				sim.bodies = originalBodies;
 				sim.elasticBonds = originalBonds;
 			}
@@ -2206,7 +2227,7 @@ const Simulation = {
 	},
 	
 	_snapToGrid: function(gridSize) {
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			b.x = Math.round(b.x / gridSize) * gridSize;
 			b.y = Math.round(b.y / gridSize) * gridSize;
 			b.path = [];
@@ -2219,24 +2240,29 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalStates = this.bodies.map(b => ({ x: b.x, y: b.y, path: [...b.path] }));
+		const originalStates = {};
+		for (const id in this.bodies) {
+			const b = this.bodies[id];
+			originalStates[id] = { x: b.x, y: b.y, path: [...b.path] };
+		}
 		const action = {
 			execute: () => sim._snapToGrid(gridSize),
 			undo: () => {
-				sim.bodies.forEach((b, i) => {
-					if (originalStates[i]) {
-						b.x = originalStates[i].x;
-						b.y = originalStates[i].y;
-						b.path = originalStates[i].path;
+				for (const id in sim.bodies) {
+					if (originalStates[id]) {
+						const b = sim.bodies[id];
+						b.x = originalStates[id].x;
+						b.y = originalStates[id].y;
+						b.path = originalStates[id].path;
 					}
-				});
+				}
 			}
 		};
 		window.App.ActionHistory.execute(action);
 	},
 	
 	_killRotation: function() {
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			b.rotationSpeed = 0;
 		}
 	},
@@ -2247,20 +2273,26 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalSpeeds = this.bodies.map(b => b.rotationSpeed);
+		const originalSpeeds = {};
+		for (const id in this.bodies) {
+			originalSpeeds[id] = this.bodies[id].rotationSpeed;
+		}
+
 		const action = {
 			execute: () => sim._killRotation(),
 			undo: () => {
-				sim.bodies.forEach((b, i) => {
-					b.rotationSpeed = originalSpeeds[i];
-				});
+				for (const id in sim.bodies) {
+					if (originalSpeeds.hasOwnProperty(id)) {
+						sim.bodies[id].rotationSpeed = originalSpeeds[id];
+					}
+				}
 			}
 		};
 		window.App.ActionHistory.execute(action);
 	},
 	
 	_scatterPositions: function(minX, minY, width, height) {
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			b.x = minX + Math.random() * width;
 			b.y = minY + Math.random() * height;
 			b.path = [];
@@ -2273,17 +2305,22 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalStates = this.bodies.map(b => ({ x: b.x, y: b.y, path: [...b.path] }));
+		const originalStates = {};
+		for (const id in this.bodies) {
+			const b = this.bodies[id];
+			originalStates[id] = { x: b.x, y: b.y, path: [...b.path] };
+		}
 		const action = {
 			execute: () => sim._scatterPositions(minX, minY, width, height),
 			undo: () => {
-				sim.bodies.forEach((b, i) => {
-					if (originalStates[i]) {
-						b.x = originalStates[i].x;
-						b.y = originalStates[i].y;
-						b.path = originalStates[i].path;
+				for (const id in sim.bodies) {
+					if (originalStates[id]) {
+						const b = sim.bodies[id];
+						b.x = originalStates[id].x;
+						b.y = originalStates[id].y;
+						b.path = originalStates[id].path;
 					}
-				});
+				}
 			}
 		};
 		window.App.ActionHistory.execute(action);
@@ -2292,7 +2329,7 @@ const Simulation = {
 	_equalizeMasses: function() {
 		let totalMass = 0;
 		let count = 0;
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			if (b.mass !== -1 && b.active) {
 				totalMass += b.mass;
 				count++;
@@ -2300,7 +2337,7 @@ const Simulation = {
 		}
 		if (count === 0) return;
 		const avg = totalMass / count;
-		for (let b of this.bodies) {
+		for (const b of Object.values(this.bodies)) {
 			if (b.mass !== -1 && b.active) {
 				b.mass = avg;
 				b.invMass = 1 / avg;
@@ -2314,16 +2351,22 @@ const Simulation = {
 			return;
 		}
 		const sim = this;
-		const originalMasses = this.bodies.map(b => ({ mass: b.mass, invMass: b.invMass }));
+		const originalMasses = {};
+		for (const id in this.bodies) {
+			const b = this.bodies[id];
+			originalMasses[id] = { mass: b.mass, invMass: b.invMass };
+		}
+
 		const action = {
 			execute: () => sim._equalizeMasses(),
 			undo: () => {
-				sim.bodies.forEach((b, i) => {
-					if (originalMasses[i]) {
-						b.mass = originalMasses[i].mass;
-						b.invMass = originalMasses[i].invMass;
+				for (const id in sim.bodies) {
+					if (originalMasses[id]) {
+						const b = sim.bodies[id];
+						b.mass = originalMasses[id].mass;
+						b.invMass = originalMasses[id].invMass;
 					}
-				});
+				}
 			}
 		};
 		window.App.ActionHistory.execute(action);

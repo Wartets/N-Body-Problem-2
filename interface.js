@@ -433,19 +433,32 @@ document.addEventListener('DOMContentLoaded', () => {
 	};	
 	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
-		const bodies = Sim.bodies;
+		const bodyArray = Object.values(Sim.bodies);
 		let totalMass = 0;
 		let comX = 0;
 		let comY = 0;
 
-		if (bodies.length > 0) {
-			bodies.forEach(b => {
-				totalMass += b.mass;
-				comX += b.x * b.mass;
-				comY += b.y * b.mass;
+		if (bodyArray.length > 0) {
+			bodyArray.forEach(b => {
+				const m = b.mass === -1 ? 1 : b.mass;
+				if (m > 0) {
+					totalMass += m;
+					comX += b.x * m;
+					comY += b.y * m;
+				}
 			});
-			comX /= totalMass;
-			comY /= totalMass;
+
+			if (totalMass > 0) {
+				comX /= totalMass;
+				comY /= totalMass;
+			} else if (bodyArray.length > 0) {
+				bodyArray.forEach(b => {
+					comX += b.x;
+					comY += b.y;
+				});
+				comX /= bodyArray.length;
+				comY /= bodyArray.length;
+			}
 		}
 
 		const zoom = Render.zoom;
@@ -647,7 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (!sortContainer) return;
 
 		const sortParams = [
-			{ label: 'Custom (Drag)', key: '' },
 			{ label: 'Name', key: 'name' },
 			{ label: 'Mass', key: 'mass' },
 			{ label: 'Radius', key: 'radius' },
@@ -662,7 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		let optionsHtml = sortParams.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
 		sortContainer.innerHTML = `
-			<select id="bodySortSelect" class="sort-select">${optionsHtml}</select>
+			<select id="bodySortSelect" class="sort-select"><option value="">Default Order</option>${optionsHtml}</select>
 			<button id="bodySortDirBtn" class="btn secondary" style="width: 30px; padding: 4px;" title="Reverse Order">
 				<i class="fa-solid fa-arrow-down-a-z"></i>
 			</button>
@@ -673,29 +685,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		let sortAsc = true;
 
 		const applySort = () => {
-			const key = sortSelect.value;
-			if (!key) return;
-
-			// Sauvegarder la sélection
-			const selectedBody = Render.selectedBodyIdx !== -1 ? Sim.bodies[Render.selectedBodyIdx] : null;
-
-			Sim.bodies.sort((a, b) => {
-				let valA = a[key];
-				let valB = b[key];
-
-				if (typeof valA === 'string') {
-					valA = valA.toLowerCase();
-					valB = valB.toLowerCase();
-					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-				}
-				
-				return sortAsc ? (valA - valB) : (valB - valA);
-			});
-
-			if (selectedBody) {
-				Render.selectedBodyIdx = Sim.bodies.indexOf(selectedBody);
-			}
-
 			refreshBodyList();
 		};
 
@@ -1264,13 +1253,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	bodiesContainer.addEventListener('click', (e) => {
 		const card = e.target.closest('.body-card');
 		if (!card) return;
-		const index = parseInt(card.dataset.index, 10);
-		const body = Sim.bodies[index];
+		const id = parseInt(card.dataset.id, 10);
+		const body = Sim.bodies[id];
 		if (!body) return;
 
 		if (e.target.closest('.btn-delete')) {
 			e.stopPropagation();
-			Sim.removeBody(index);
+			Sim.removeBody(id);
 			return;
 		}
 
@@ -1283,10 +1272,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		if (e.target.closest('.btn-track')) {
 			e.stopPropagation();
-			if (Render.trackedBodyIdx === index) {
-				Render.trackedBodyIdx = -1;
+			if (Render.trackedBodyId === id) {
+				Render.trackedBodyId = null;
 			} else {
-				Render.trackedBodyIdx = index;
+				Render.trackedBodyId = id;
 				Render.enableTracking = false;
 				document.getElementById('camTrackingBox').checked = false;
 			}
@@ -1295,8 +1284,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 		
 		if (e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
-			Render.selectedBodyIdx = index;
-			window.App.ui.highlightBody(index);
+			Render.selectedBodyId = id;
+			window.App.ui.highlightBody(id);
 		}
 	});
 	
@@ -1304,8 +1293,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		const input = e.target;
 		const card = input.closest('.body-card');
 		if (!card) return;
-		const index = parseInt(card.dataset.index, 10);
-		const body = Sim.bodies[index];
+		const id = parseInt(card.dataset.id, 10);
+		const body = Sim.bodies[id];
 		if (!body) return;
 
 		const key = input.dataset.key;
@@ -1337,8 +1326,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		const input = e.target;
 		const card = input.closest('.body-card');
 		if (!card) return;
-		const index = parseInt(card.dataset.index, 10);
-		const body = Sim.bodies[index];
+		const id = parseInt(card.dataset.id, 10);
+		const body = Sim.bodies[id];
 		if (!body) return;
 
 		const originalValueStr = input.dataset.originalValue;
@@ -1364,83 +1353,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				undo: () => applyColor(oldValue)
 			};
 			window.App.ActionHistory.execute(action);
-			return;
-		}
-
-		if (input.classList.contains('body-name-input')) {
-			const oldValue = originalValueStr;
-			const newValue = input.value;
-			const action = {
-				execute: () => { body.name = newValue; },
-				undo: () => { body.name = oldValue; }
-			};
-			window.App.ActionHistory.execute(action);
-			return;
-		}
-
-		const key = input.dataset.key;
-		if (key) {
-			const oldValue = parseFloat(originalValueStr);
-			
-			const result = evaluateMathExpression(input.value);
-			if (typeof result === 'number') {
-				input.value = formatVal(result, 4);
-				input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-			}
-			
-			const newValue = body[key];
-			
-			if (isNaN(oldValue) || isNaN(newValue) || oldValue === newValue) return;
-
-			const action = {
-				execute: () => {
-					body[key] = newValue;
-					if (key === 'mass') body.invMass = (newValue === -1) ? 0 : 1 / newValue;
-				},
-				undo: () => {
-					body[key] = oldValue;
-					if (key === 'mass') body.invMass = (oldValue === -1) ? 0 : 1 / oldValue;
-				}
-			};
-			window.App.ActionHistory.execute(action);
-		}
-	});
-	
-	bodiesContainer.addEventListener('change', (e) => {
-		const input = e.target;
-		const card = input.closest('.body-card');
-		if (!card) return;
-		const index = parseInt(card.dataset.index, 10);
-		const body = Sim.bodies[index];
-		if (!body) return;
-
-		if (input.classList.contains('color-input-hidden')) {
-			const oldValue = body.color;
-			const newValue = input.value;
-			
-			const colorDot = card.querySelector('.body-color-dot');
-			const applyColor = (color) => {
-				body.color = color;
-				if (colorDot) {
-					colorDot.style.backgroundColor = color;
-					colorDot.style.boxShadow = `0 0 5px ${color}`;
-				}
-				card.style.borderLeftColor = color;
-				if (color.startsWith('#')) {
-					input.value = color;
-				}
-			};
-			const action = {
-				execute: () => applyColor(newValue),
-				undo: () => applyColor(oldValue)
-			};
-			window.App.ActionHistory.execute(action);
-			return;
-		}
-
-		const originalValueStr = input.dataset.originalValue;
-		if (originalValueStr === undefined || input.value === originalValueStr) {
-			delete input.dataset.originalValue;
 			return;
 		}
 
@@ -1718,17 +1630,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		fragParams.classList.toggle('hidden-content', !Sim.enableFragmentation);
 	}
 	
-	function createBodyCard(body, index) {
+	function createBodyCard(body) {
 		const div = document.createElement('div');
 		div.className = 'body-card';
 		if (!body.active) {
 			div.classList.add('inactive');
 		}
 		div.style.borderLeftColor = body.color;
-		div.dataset.index = index;
-		div.setAttribute('draggable', 'true');
+		div.dataset.id = body.id;
 		
-		const isTracked = Render.trackedBodyIdx === index;
+		const isTracked = Render.trackedBodyId === body.id;
 		const trackBtnClass = isTracked ? 'active' : '';
 		const trackIconClass = isTracked ? 'fa-solid fa-eye' : 'fa-regular fa-eye';
 
@@ -1781,74 +1692,51 @@ document.addEventListener('DOMContentLoaded', () => {
 				label.title = "Click and drag to change value. Hold Shift for precision, Ctrl for speed.";
 			});
 		}
-
-		div.addEventListener('dragstart', (e) => {
-			if (e.target !== div) {
-				e.preventDefault();
-				return;
-			}
-			draggedItemIndex = index;
-			div.classList.add('dragging');
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', index);
-		});
-
-		div.addEventListener('dragend', () => {
-			div.classList.remove('dragging');
-			draggedItemIndex = null;
-		});
-
-		div.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			e.dataTransfer.dropEffect = 'move';
-		});
-
-		div.addEventListener('drop', (e) => {
-			e.preventDefault();
-			if (draggedItemIndex === null || draggedItemIndex === index) return;
-
-			const targetIndex = index;
-			const movedBody = Sim.bodies[draggedItemIndex];
-			Sim.bodies.splice(draggedItemIndex, 1);
-			Sim.bodies.splice(targetIndex, 0, movedBody);
-			
-			if (Render.selectedBodyIdx === draggedItemIndex) Render.selectedBodyIdx = targetIndex;
-			else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) Render.selectedBodyIdx--;
-			else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) Render.selectedBodyIdx++;
-			
-			if (Render.trackedBodyIdx === draggedItemIndex) Render.trackedBodyIdx = targetIndex;
-			else if (draggedItemIndex < targetIndex && Render.trackedBodyIdx > draggedItemIndex && Render.trackedBodyIdx <= targetIndex) Render.trackedBodyIdx--;
-			else if (draggedItemIndex > targetIndex && Render.trackedBodyIdx < draggedItemIndex && Render.trackedBodyIdx >= targetIndex) Render.trackedBodyIdx++;
-
-			refreshBodyList();
-		});
-
+		
 		return div;
 	}
 	
 	function refreshBodyList() {
-		const bodies = Sim.bodies;
-		const total = bodies.length;
+		let bodyArray = Object.values(Sim.bodies);
+		const total = bodyArray.length;
 		bodyCountLabel.textContent = total;
+		
+		const sortSelect = document.getElementById('bodySortSelect');
+		const sortDirBtn = document.getElementById('bodySortDirBtn');
+		const key = sortSelect ? sortSelect.value : '';
+		const sortAsc = sortDirBtn ? sortDirBtn.innerHTML.includes('a-z') : true;
 
-		let spacer = bodiesContainer.querySelector('.virtual-spacer');
-		if (!spacer) {
-			bodiesContainer.innerHTML = '';
-			spacer = document.createElement('div');
-			spacer.className = 'virtual-spacer';
-			Object.assign(spacer.style, {
-				position: 'relative',
-				width: '100%',
-				overflow: 'hidden',
-				height: '0px'
+		if (key) {
+			bodyArray.sort((a, b) => {
+				let valA = a[key];
+				let valB = b[key];
+
+				if (typeof valA === 'string') {
+					valA = valA.toLowerCase();
+					valB = valB.toLowerCase();
+					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+				}
+				
+				return sortAsc ? (valA - valB) : (valB - valA);
 			});
-			bodiesContainer.appendChild(spacer);
-			
+		} else {
+			bodyArray.sort((a,b) => a.id - b.id);
+		}
+		
+		if (!bodiesContainer.state) {
+			bodiesContainer.innerHTML = '';
 			bodiesContainer.state = {
 				itemHeight: 280, 
-				ticking: false
+				ticking: false,
+				spacer: document.createElement('div'),
+				sortedBodyArray: []
 			};
-
+			bodiesContainer.state.spacer.className = 'virtual-spacer';
+			Object.assign(bodiesContainer.state.spacer.style, {
+				position: 'relative', width: '100%', overflow: 'hidden', height: '0px'
+			});
+			bodiesContainer.appendChild(bodiesContainer.state.spacer);
+			
 			bodiesContainer.addEventListener('scroll', () => {
 				if (!bodiesContainer.state.ticking) {
 					window.requestAnimationFrame(() => {
@@ -1860,16 +1748,16 @@ document.addEventListener('DOMContentLoaded', () => {
 			}, { passive: true });
 		}
 		
+		bodiesContainer.state.sortedBodyArray = bodyArray;
 		renderVirtualVisible(true);
 		
-		if (Render.selectedBodyIdx !== -1) {
-			window.App.ui.highlightBody(Render.selectedBodyIdx);
+		if (Render.selectedBodyId !== null) {
+			window.App.ui.highlightBody(Render.selectedBodyId);
 		}
 	}
 	
 	function refreshBodyListAsync(onComplete) {
-		const bodies = Sim.bodies;
-		const totalBodies = bodies.length;
+		const totalBodies = Object.keys(Sim.bodies).length;
 
 		bodyCountLabel.textContent = totalBodies;
 		
@@ -2128,12 +2016,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	
 	function renderVirtualVisible(force = false) {
-		const bodies = Sim.bodies;
-		const total = bodies.length;
 		const spacer = bodiesContainer.querySelector('.virtual-spacer');
 		if (!spacer || !bodiesContainer.state) return;
-
+	
 		const state = bodiesContainer.state;
+		const bodies = state.sortedBodyArray;
+		const total = bodies.length;
 		const viewportHeight = bodiesContainer.clientHeight || 600;
 		const scrollTop = bodiesContainer.scrollTop;
 		
@@ -2163,20 +2051,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			if (!rendered.has(i)) {
 				const body = bodies[i];
 				if (body) {
-					const card = createBodyCard(body, i);
+					const card = createBodyCard(body);
+					card.dataset.index = i;
 					Object.assign(card.style, {
 						position: 'absolute',
 						top: (i * state.itemHeight) + 'px',
 						left: '0',
 						right: '0',
 						boxSizing: 'border-box'
-					});
-					
-					card.addEventListener('click', (e) => {
-						if (e.target.tagName !== 'INPUT' && !e.target.closest('.btn-delete') && !e.target.closest('.btn-track')) {
-							Render.selectedBodyIdx = i;
-							window.App.ui.highlightBody(i);
-						}
 					});
 					
 					fragment.appendChild(card);
@@ -2280,8 +2162,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
-	Sim.removeBody = function(index) {
-		originalRemoveBody(index);
+	Sim.removeBody = function(id) {
+		originalRemoveBody(id);
 		refreshBodyList();
 		refreshZoneList('elasticBond');
 	};
@@ -2297,15 +2179,15 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	window.App.ui = {
 		syncInputs: function(syncAll = false) {
-			if (bodiesContainer.classList.contains('hidden-content')) return;
+			if (bodiesContainer.classList.contains('hidden-content') || !bodiesContainer.state) return;
 
-			const spacer = bodiesContainer.querySelector('.virtual-spacer');
+			const spacer = bodiesContainer.state.spacer;
 			if (!spacer) return;
 
 			const syncCard = (card) => {
 				if (!card) return;
-				const index = parseInt(card.dataset.index);
-				const body = Sim.bodies[index];
+				const id = parseInt(card.dataset.id);
+				const body = Sim.bodies[id];
 				if (!body) return;
 
 				bodyProperties.forEach(prop => {
@@ -2324,32 +2206,34 @@ document.addEventListener('DOMContentLoaded', () => {
 				for (let i = 0; i < cards.length; i++) {
 					syncCard(cards[i]);
 				}
-			} else if (Render.selectedBodyIdx !== -1) {
-				const card = spacer.querySelector(`.body-card[data-index="${Render.selectedBodyIdx}"]`);
+			} else if (Render.selectedBodyId !== null) {
+				const card = spacer.querySelector(`.body-card[data-id="${Render.selectedBodyId}"]`);
 				if (card) syncCard(card);
 			}
 		},
 		
-		highlightBody: function(index) {
-			const spacer = bodiesContainer.querySelector('.virtual-spacer');
+		highlightBody: function(id) {
+			if (!bodiesContainer.state) return;
+			const { spacer, sortedBodyArray, itemHeight } = bodiesContainer.state;
 			if (!spacer) return;
 			
 			const cards = spacer.querySelectorAll('.body-card');
 			cards.forEach(c => c.classList.remove('selected'));
 			
-			const card = spacer.querySelector(`.body-card[data-index="${index}"]`);
+			const card = spacer.querySelector(`.body-card[data-id="${id}"]`);
 			if (card) {
 				card.classList.add('selected');
 			}
 			
-			if (bodiesContainer.state) {
-				const itemTop = index * bodiesContainer.state.itemHeight;
-				const itemBottom = itemTop + bodiesContainer.state.itemHeight;
+			const indexInSorted = sortedBodyArray.findIndex(b => b.id === id);
+			if (indexInSorted > -1) {
+				const itemTop = indexInSorted * itemHeight;
+				const itemBottom = itemTop + itemHeight;
 				const scrollTop = bodiesContainer.scrollTop;
 				const height = bodiesContainer.clientHeight;
 				
 				if (itemTop < scrollTop || itemBottom > scrollTop + height) {
-					bodiesContainer.scrollTop = itemTop - height / 2 + bodiesContainer.state.itemHeight / 2;
+					bodiesContainer.scrollTop = itemTop - height / 2 + itemHeight / 2;
 				}
 			}
 		}
@@ -2388,7 +2272,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		['showTrailsBox', Sim, 'showTrails'], ['showGravFieldBox', Render, 'showGravField'], ['showElecFieldBox', Render, 'showElecField'],
 		['showMagFieldBox', Render, 'showMagField'], ['showFormulaFieldBox', Render, 'showFormulaField'], ['physicalColorBox', Sim, 'enablePhysicalColors'],
 		['gravBox', Sim, 'enableGravity'], ['elecBox', Sim, 'enableElectricity'], ['magBox', Sim, 'enableMagnetism'], ['colBox', Sim, 'enableCollision'],
-		['camTrackingBox', Render, 'enableTracking', (c) => { if (c) { Render.trackedBodyIdx = -1; refreshBodyList(); } }],
+		['camTrackingBox', Render, 'enableTracking', (c) => { if (c) { Render.trackedBodyId = null; refreshBodyList(); } }],
 		['camAutoZoomBox', Render, 'enableAutoZoom', (c) => { if (c) Render.userZoomFactor = 1.0; }],
 		['thermoBox', Sim, 'enableThermodynamics', (c) => { if (thermoParams) thermoParams.classList.toggle('hidden-content', !c); }],
 		['fragBox', Sim, 'enableFragmentation', (c) => { if (fragParams) fragParams.classList.toggle('hidden-content', !c); }]
@@ -2418,7 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	Render.draw();
 
 	setInterval(() => {
-		if (!Sim.paused && Render.selectedBodyIdx !== -1) {
+		if (!Sim.paused && Render.selectedBodyId !== null) {
 			window.App.ui.syncInputs();
 		}
 	}, 150);
