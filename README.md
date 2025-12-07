@@ -1,160 +1,106 @@
-# N-Body Physics Simulation
+# N-Body Simulation: Technical Documentation
 
-This repository contains a browser-based, real-time N-Body physics engine implemented in JavaScript. The application simulates the dynamic interaction of particles under the influence of gravitational, electromagnetic, and user-defined forces. It utilizes the HTML5 Canvas API for rendering and provides a suite of tools for manipulating the simulation environment, including topological constraints, fluid dynamics approximations, and rigid body collisions.
+## Core Physics Engine
 
-## Physics Model
+The simulation's core is a custom-built 2D physics engine designed for performance and flexibility. It revolves around a high-frequency update loop that integrates the motion of all bodies.
 
-The core of the simulation relies on discrete time-stepping integration to solve the equations of motion for $N$ interacting bodies.
+### 1. Integration Method
 
-### Numerical Integration
-The simulation employs the **Semi-Implicit Euler method** (also known as the Euler-Cromer method) for time integration. This symplectic integrator is chosen for its energy conservation properties over long durations compared to the standard explicit Euler method.
+The simulation employs a **Velocity Verlet** integration algorithm. This is a numerical method used to integrate Newton's equations of motion. It is chosen for its stability, accuracy, and time-reversibility, which are crucial for long-term energy conservation in N-body problems.
 
-For a time step $\Delta t$, the velocity $\vec{v}$ and position $\vec{x}$ of a body are updated as follows:
+The integration proceeds in the following steps for each time step `dt`:
 
-$$
-\vec{v}_{t+\Delta t} = \vec{v}_t + \vec{a}(\vec{x}_t, \vec{v}_t) \Delta t
-$$
+1.  Calculate partial velocity update: `v(t + dt/2) = v(t) + a(t) * dt/2`
+2.  Update position: `x(t + dt) = x(t) + v(t + dt/2) * dt`
+3.  Compute forces at the new position to find acceleration `a(t + dt)`
+4.  Calculate the final velocity update: `v(t + dt) = v(t + dt/2) + a(t + dt) * dt/2`
 
-$$
-\vec{x}_{t+\Delta t} = \vec{x}_t + \vec{v}_{t+\Delta t} \Delta t
-$$
+A relativistic speed limit is also enforced, capping the magnitude of any body's velocity at the simulation's speed of light, `c`.
 
-Where $\vec{a}$ represents the net acceleration vector derived from the summation of all forces acting on the body.
+### 2. Optimization Techniques
 
-### Fundamental Interactions
+Calculating the interaction between every pair of bodies is an O(n²) operation, which becomes computationally expensive for a large number of bodies. To overcome this, the simulation uses a hybrid approach.
 
-The simulation calculates the net force $\vec{F}_{net}$ acting on each body $i$ by summing the contributions from all other bodies $j$.
+#### Barnes-Hut Algorithm (Long-Range Forces)
 
-#### 1. Gravitational Interaction
-Gravity is modeled using Newton's Law of Universal Gravitation. The force $\vec{F}_{g}$ exerted on body $i$ by body $j$ is:
+For long-range forces like gravity and electromagnetism, the simulation uses a **Barnes-Hut algorithm**. This technique approximates the force exerted by distant groups of bodies as a single force from their collective center of mass.
 
-$$
-\vec{F}_{g} = G \frac{m_i m_j}{|\vec{r}_{ij}|^3} \vec{r}_{ij}
-$$
+-   A **QuadTree** data structure recursively partitions the 2D space, grouping nearby bodies.
+-   When calculating forces on a body, the algorithm traverses the tree. If a node (a group of bodies) is sufficiently far away, its net force is calculated as a single interaction.
+-   The distance criterion is determined by the ratio `s/d < θ`, where `s` is the width of the node, `d` is the distance to its center of mass, and `θ` (theta) is an accuracy parameter. A smaller `θ` increases accuracy but reduces performance.
 
-Where:
-*   $G$ is the gravitational constant (tunable in the simulation).
-*   $m$ represents mass.
-*   $\vec{r}_{ij} = \vec{x}_j - \vec{x}_i$ is the displacement vector.
+This method reduces the complexity of force calculation from O(n²) to **O(n log n)**.
 
-#### 2. Electrostatic Interaction
-Electric forces are modeled using Coulomb's Law. The force $\vec{F}_{e}$ exerted on body $i$ by body $j$ is:
+#### Spatial Grid (Short-Range Forces)
 
-$$
-\vec{F}_{e} = -k_e \frac{q_i q_j}{|\vec{r}_{ij}|^3} \vec{r}_{ij}
-$$
+For short-range interactions like physical collisions, a **uniform spatial grid** is used. The simulation space is divided into cells, and each body is placed into one or more cells. When checking for collisions for a given body, only bodies in the same or adjacent cells need to be considered. This drastically reduces the number of collision checks required, bringing the average complexity closer to **O(n)**.
 
-Where:
-*   $k_e$ is the Coulomb constant.
-*   $q$ represents electric charge.
-*   The negative sign indicates that like charges repel and opposite charges attract.
+## Physical Models and Equations
 
-#### 3. Magnetic Interaction Approximation
-The simulation includes a simplified model for magnetic interaction, treating bodies as point-source magnetic dipoles. The force $\vec{F}_{m}$ falls off with the cube of the distance ($1/r^3$):
+The simulation incorporates a wide range of physical models to create a rich and interactive sandbox.
 
-$$
-\vec{F}_{m} = -k_m \frac{\mu_i \mu_j}{|\vec{r}_{ij}|^4} \vec{r}_{ij}
-$$
+### 1. Fundamental Forces
 
-Where:
-*   $k_m$ is the magnetic constant.
-*   $\mu$ represents the magnetic moment magnitude.
+-   **Gravity**: The simulation uses Newton's law of universal gravitation:
+    `F = G * (m1 * m2) / r²`
+    Where `G` is the gravitational constant, `m1` and `m2` are the body masses, and `r` is the distance between them.
 
-### Relativistic Constraints
-To prevent instability at high velocities, a simplified special relativistic limit is applied. Velocities are clamped such that $|\vec{v}| < c$, where $c$ is the simulation's speed of light limit.
+-   **Electromagnetism**:
+    -   **Electrostatics**: Forces between charged particles are modeled using Coulomb's Law:
+        `F = Ke * (q1 * q2) / r²`
+        Where `Ke` is Coulomb's constant and `q1` and `q2` are the electric charges.
+    -   **Magnetism**: The interaction between bodies is modeled as a simplified dipole-dipole force, where the force is proportional to the inverse fourth power of the distance:
+        `F ∝ (M1 * M2) / r⁴`
+        Where `M1` and `M2` are the magnetic moments. This simplification assumes the magnetic moments are aligned.
 
-$$
-\text{If } |\vec{v}| > c, \quad \vec{v} \leftarrow \vec{v} \cdot \frac{c}{|\vec{v}|} \cdot 0.999
-$$
+### 2. Collision Physics
 
-### Custom Field Definitions
-The engine includes a mathematical expression parser that allows the definition of arbitrary vector fields. Users can define force vectors $\vec{E} = (E_x, E_y)$ as functions of position and time. The resulting force on a charged body is $\vec{F} = q\vec{E}$.
+Collisions are handled by a robust impulse-based resolution model that includes rotational and soft-body dynamics.
 
-Supported variables in the formula parser include coordinates ($x, y$), constants ($G, c, k_e, k_m$), time ($t$), and mathematical constants ($\pi, e$).
+-   **Soft-Body Contact**: When bodies overlap, a repulsive force based on the material's **Young's Modulus (Y)** is applied to simulate elastic deformation and prevent bodies from passing through each other.
+-   **Impulse Resolution**: The change in momentum during a collision is calculated using an impulse `J`. This is resolved into two components:
+    -   **Normal Impulse**: Along the line connecting the centers, responsible for the "bounce". It depends on the **coefficient of restitution (e)**.
+    -   **Tangential Impulse**: Perpendicular to the normal, responsible for friction. It depends on the **coefficient of friction (μ)** and is limited by the normal force.
+-   **Rotational Effects**: Tangential friction forces apply torque to the bodies, affecting their angular velocity.
 
-## Contact Dynamics and Collisions
+### 3. Thermodynamics
 
-The engine implements rigid body collisions with support for friction and angular momentum transfer.
+The simulation includes a thermodynamic model where mechanical energy can be converted into thermal energy.
 
-### Collision Detection
-Collision detection is performed using a broad-phase $O(N^2)$ check comparing the Euclidean distance between centers against the sum of radii ($R_i + R_j$).
+-   **Heat from Collisions**: In inelastic collisions (`e < 1`), the kinetic energy that is not conserved is converted into heat, raising the temperature of the colliding bodies. The amount of energy converted is:
+    `ΔE = 0.5 * μ_reduced * v_relative² * (1 - e²)`
+-   **Temperature-Dependent Properties**: A body's material properties, such as its coefficient of restitution (`e`) and Young's Modulus (`Y`), change with temperature. This is modeled using a sigmoid function that simulates softening and melting as a body passes its **critical temperature**.
+-   **Radiative Cooling**: Bodies radiate heat into the ambient environment according to the **Stefan-Boltzmann Law**:
+    `P = σ * A * (T⁴ - T_ambient⁴)`
+    Where `P` is the radiated power, `σ` is the Stefan-Boltzmann constant, `A` is the surface area, and `T` is the body's temperature.
 
-### Impulse Resolution
-Upon collision, an impulse $\vec{J}$ is applied to separate bodies and alter their velocities. The magnitude of the normal impulse $J_n$ is calculated as:
+### 4. Fragmentation
 
-$$
-J_n = \frac{-(1 + e) (\vec{v}_{rel} \cdot \hat{n})}{m_i^{-1} + m_j^{-1}}
-$$
+Bodies can be destroyed by excessive forces.
 
-Where:
-*   $e$ is the coefficient of restitution ($e \in [0, 1]$), determining elasticity.
-*   $\hat{n}$ is the collision normal.
-*   $\vec{v}_{rel}$ is the relative velocity at the point of contact.
+-   **Collision-Induced**: If the impulse (`J`) delivered during a collision exceeds a body's structural **integrity**, it shatters into smaller fragments.
+-   **Tidal Forces**: A body orbiting a much more massive object can be torn apart if the gravitational gradient across it is too strong. This is a 2D implementation of the Roche limit concept.
 
-### Friction and Rotation
-The simulation accounts for tangential friction during collisions, which induces rotation. Bodies are modeled as 2D disks with a moment of inertia $I = \frac{1}{2} m R^2$. The tangential impulse $J_t$ modifies the angular velocity $\omega$ and linear velocity, simulating the effect of spin on rebound.
+## Interactive Tools and Zones
 
-### Soft Body Repulsion (Penetration)
-To mitigate instability when bodies overlap significantly, a penalty force based on Young's Modulus (stiffness) is applied, proportional to the penetration depth.
+Users can add various fields and zones to the simulation to create complex scenarios.
 
-## Environmental Features
+-   **Formula Fields**: Users can define custom force fields using mathematical expressions with variables like `x`, `y`, `t` (time), and physical constants.
+-   **Elastic Bonds**: Connects two bodies with a simulated spring, rope, or chain. The model is based on Hooke's Law (`F = -k*x`) and includes damping, non-linearity, and active oscillation capabilities.
+-   **Zones**:
+    -   **Periodic**: Creates wrap-around boundaries (like in classic arcade games).
+    -   **Viscosity**: Applies a drag force proportional to a body's velocity (`F = -k*v`).
+    -   **Field**: Applies a constant acceleration (a uniform force field).
+    -   **Thermal**: Sets a specific temperature and heat transfer rate for any body within it.
+    -   **Annihilation**: Destroys any body that enters it.
+    -   **Chaos**: Creates a turbulent, unpredictable force field using Perlin-like noise.
+    -   **Vortex**: Applies a swirling force field with both radial and tangential components.
+    -   **Null**: Selectively disables fundamental forces (gravity, electricity, etc.) for bodies inside it.
 
-Beyond particle-particle interactions, the simulation supports various environmental structures.
+## Units and Scaling
 
-### Elastic Bonds (Springs)
-Bodies can be linked via damped harmonic oscillators. The force exerted by a bond is:
+A key feature of the simulation is its robust unit system, which allows it to model phenomena at vastly different scales (from subatomic particles to galaxies).
 
-$$
-\vec{F}_{spring} = -k (|\vec{r}_{ij}| - L_0) \hat{r}_{ij} - b (\vec{v}_{rel} \cdot \hat{n}) \hat{r}_{ij}
-$$
-
-Where $k$ is stiffness, $L_0$ is rest length, and $b$ is the damping coefficient.
-
-### Viscosity Zones
-Rectangular regions can be defined where a drag force acts on bodies to simulate fluid resistance. The drag is modeled as linear Stokes drag:
-
-$$
-\vec{F}_{drag} = - \eta \vec{v}
-$$
-
-Where $\eta$ is the viscosity coefficient of the zone.
-
-### Periodic Zones
-The simulation supports topological boundaries where bodies traversing one edge of a defined rectangular zone re-enter from the opposite edge, preserving velocity (toroidal topology).
-
-### Solid Barriers
-Static linear barriers can be drawn. These act as infinite-mass walls with defined coefficients of restitution, interacting with bodies via the impulse resolution system described above.
-
-## Visualization Mechanics
-
-The rendering engine utilizes the HTML5 Canvas `2DContext`.
-
-*   **Field Visualization:** A grid-based approach calculates the net force vector at discrete points in the viewport to visualize gravitational, electric, and magnetic fields.
-*   **Spacetime Distortion:** A pixel-displacement shader effect simulates the curvature of spacetime around massive bodies. The grid distortion vector $\vec{D}$ at a point $\vec{p}$ is calculated as: $\vec{D} = \sum_i \frac{m_i (\vec{x}_i - \vec{p})}{|\vec{x}_i - \vec{p}|^2 + \epsilon}$.
-*   **Trajectory Prediction:** The engine runs a shadow simulation forward in time (using a cloned state) to render predicted paths for selected bodies, accounting for all active forces and constraints.
-*   **Barycenter Tracking:** Visualizes the center of mass of the system.
-
-## Tooling and Controls
-
-The interface allows for granular control over the simulation parameters and state.
-
-### Global Parameters
-*   **Time Step ($dt$):** Controls the granularity of the integration.
-*   **Interaction Toggles:** Individual switches for Gravity, Electricity, Magnetism, and Collisions.
-*   **Grid Snapping & Culling:** Tools to align bodies or remove those outside the viewport.
-
-### Object Injection
-Users can inject new bodies with specific kinematic and physical properties (mass, velocity, charge, material properties). Pre-defined astrophysical presets (e.g., "Red Giant", "Neutron Star") and atomic presets (e.g., "Proton", "Electron") are available.
-
-### Editing Tools
-*   **Zone Drawing:** Creation of periodic, viscosity, or custom field zones.
-*   **Barrier Drawing:** creation of solid static walls.
-*   **Linking:** Creation of elastic bonds between existing bodies.
-*   **Vector Manipulation:** Direct manipulation of velocity vectors via a drag-and-drop interface on the canvas.
-
-## Technical Architecture
-
-*   `simulation.js`: Contains the physics engine, state management, and numerical integration logic.
-*   `rendering.js`: Handles the draw loop, coordinate transformation (world-to-screen), and visual effects.
-*   `interface.js`: Manages DOM manipulation, event listeners, and data binding between the UI and the simulation state.
-*   `presets.js`: Stores configuration objects for predefined simulation scenarios (e.g., Solar System, Lattice Structure).
+-   **Simulation Units**: The physics engine operates using an internal, optimized set of units for constants like `G` and `c`.
+-   **SI Units**: The simulation provides a complete set of scaling factors (`T₀`, `L₀`, `M₀`, `Q₀`, etc.) to translate between the internal simulation units and standard SI units (meters, kilograms, seconds).
+-   **Dimensional Analysis**: These factors are derived from dimensional analysis, ensuring that the laws of physics remain consistent regardless of the scale. This allows users to input values in familiar units and get physically meaningful results, or to fine-tune the simulation constants to explore alternative physics.
