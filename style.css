@@ -222,6 +222,7 @@ select option {
 	gap: 16px;
 	touch-action: pan-y;
 	flex: 1;
+	min-height: 0;
 }
 
 .tab-pane {
@@ -468,6 +469,7 @@ input[type=range]::-moz-range-thumb {
 	align-items: center;
 	cursor: pointer;
 	font-size: 12px;
+	min-height: 24px;
 }
 .toggle-row input { display: none; }
 .toggle-switch {

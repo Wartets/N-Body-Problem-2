@@ -1296,8 +1296,13 @@ const Rendering = {
 		if (x + boxWidth > this.width) {
 			x = mx - boxWidth - 20;
 		}
+		if (x < 0) x = 5;
+
 		if (y < 0) {
 			y = my + 20;
+		}
+		if (y + boxHeight > this.height) {
+			y = this.height - boxHeight - 5;
 		}
 
 		const controlPanel = document.getElementById('controlPanel');
@@ -1318,6 +1323,11 @@ const Rendering = {
 				}
 			}
 		}
+		
+		if (x < 0) x = 5;
+		if (y < 0) y = 5;
+		if (x + boxWidth > this.width) x = this.width - boxWidth - 5;
+		if (y + boxHeight > this.height) y = this.height - boxHeight - 5;
 
 		this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
 		this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';

@@ -133,136 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 
-	const setupDraggable = (panelEl, headerEl, neighbors = []) => {
-		let isMouseDown = false;
-		let isDragging = false;
-		let startX = 0, startY = 0;
-		let offsetX = 0, offsetY = 0;
-
-		const startDrag = (clientX, clientY) => {
-			isMouseDown = true;
-			startX = clientX;
-			startY = clientY;
-			
-			const rect = panelEl.getBoundingClientRect();
-			offsetX = clientX - rect.left;
-			offsetY = clientY - rect.top;
-			
-			// Disable transition for instant response
-			panelEl.style.transition = 'none';
-		};
-
-		const moveDrag = (clientX, clientY) => {
-			if (!isMouseDown) return;
-
-			if (!isDragging) {
-				const dx = clientX - startX;
-				const dy = clientY - startY;
-				if (dx * dx + dy * dy < 25) return;
-
-				isDragging = true;
-				maxZIndex++;
-				panelEl.style.zIndex = maxZIndex;
-				headerEl.style.cursor = 'grabbing';
-				
-				const rect = panelEl.getBoundingClientRect();
-				panelEl.style.right = 'auto';
-				panelEl.style.left = rect.left + 'px';
-				panelEl.style.top = rect.top + 'px';
-			}
-
-			if (isDragging) {
-				let newX = clientX - offsetX;
-				let newY = clientY - offsetY;
-				
-				const isMobile = window.innerWidth < 600;
-				const frameMargin = isMobile ? 0 : 20;
-				const snapThreshold = isMobile ? 10 : 20;
-				
-				const winW = window.innerWidth;
-				const winH = window.innerHeight;
-				const pW = panelEl.offsetWidth;
-				const pH = panelEl.offsetHeight;
-
-				if (Math.abs(newX - frameMargin) < snapThreshold) newX = frameMargin;
-				else if (Math.abs((newX + pW) - (winW - frameMargin)) < snapThreshold) newX = winW - frameMargin - pW;
-
-				if (Math.abs(newY - frameMargin) < snapThreshold) newY = frameMargin;
-				else if (Math.abs((newY + pH) - (winH - frameMargin)) < snapThreshold) newY = winH - frameMargin - pH;
-
-				newX = Math.max(0, Math.min(winW - pW, newX));
-				newY = Math.max(0, Math.min(winH - pH, newY));
-
-				panelEl.style.left = newX + 'px';
-				panelEl.style.top = newY + 'px';
-			}
-		};
-
-		const endDrag = () => {
-			isMouseDown = false;
-			if (isDragging) {
-				isDragging = false;
-				headerEl.style.cursor = 'grab';
-				// Restore transition
-				panelEl.style.transition = '';
-			}
-		};
-
-		headerEl.addEventListener('dblclick', (e) => {
-			if (e.target.closest('button')) return;
-
-			panelEl.classList.toggle('collapsed');
-			const toggleBtn = headerEl.querySelector('button');
-
-			if (toggleBtn) {
-				const isCollapsed = panelEl.classList.contains('collapsed');
-				toggleBtn.innerHTML = isCollapsed ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
-			}
-			
-			panelEl.style.removeProperty('top');
-			panelEl.style.removeProperty('left');
-			panelEl.style.removeProperty('right');
-		});
-
-		panelEl.addEventListener('mousedown', () => {
-			maxZIndex++;
-			panelEl.style.zIndex = maxZIndex;
-		});
-		
-		panelEl.addEventListener('touchstart', () => {
-			maxZIndex++;
-			panelEl.style.zIndex = maxZIndex;
-		}, {passive: true});
-
-		headerEl.addEventListener('mousedown', (e) => {
-			if(e.target.closest('button')) return; 
-			startDrag(e.clientX, e.clientY);
-		});
-
-		window.addEventListener('mousemove', (e) => {
-			moveDrag(e.clientX, e.clientY);
-		});
-
-		window.addEventListener('mouseup', endDrag);
-
-		headerEl.addEventListener('touchstart', (e) => {
-			if(e.target.closest('button')) return;
-			e.preventDefault();
-			const touch = e.touches[0];
-			startDrag(touch.clientX, touch.clientY);
-		}, {passive: false});
-
-		window.addEventListener('touchmove', (e) => {
-			if(isMouseDown) {
-				if (isDragging) e.preventDefault();
-				const touch = e.touches[0];
-				moveDrag(touch.clientX, touch.clientY);
-			}
-		}, {passive: false});
-
-		window.addEventListener('touchend', endDrag);
-	};
-	
 	const mkZoneCfg = (listId, colId, cntId, arr, rm, col, actId, setActId, flds, xtra, setup) => ({
 		listContainer: document.getElementById(listId),
 		collapsible: document.getElementById(colId),
@@ -873,6 +743,162 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (wasHidden && !bodiesContainer.classList.contains('hidden-content')) {
 			refreshBodyList();
 		}
+	};
+	
+	const setupDraggable = (panelEl, headerEl, neighbors = []) => {
+		let isMouseDown = false;
+		let isDragging = false;
+		let startX = 0, startY = 0;
+		let offsetX = 0, offsetY = 0;
+
+		const clampPosition = () => {
+			const rect = panelEl.getBoundingClientRect();
+			const winW = window.innerWidth;
+			const winH = window.innerHeight;
+			
+			let newX = rect.left;
+			let newY = rect.top;
+			let clamped = false;
+
+			if (newX + rect.width > winW) { newX = winW - rect.width - 5; clamped = true; }
+			if (newX < 0) { newX = 5; clamped = true; }
+			if (newY + rect.height > winH) { newY = winH - rect.height - 5; clamped = true; }
+			if (newY < 0) { newY = 5; clamped = true; }
+
+			if (clamped) {
+				panelEl.style.left = newX + 'px';
+				panelEl.style.top = newY + 'px';
+				panelEl.style.right = 'auto';
+				panelEl.style.bottom = 'auto';
+			}
+		};
+
+		window.addEventListener('resize', clampPosition);
+
+		const startDrag = (clientX, clientY) => {
+			isMouseDown = true;
+			startX = clientX;
+			startY = clientY;
+			
+			const rect = panelEl.getBoundingClientRect();
+			offsetX = clientX - rect.left;
+			offsetY = clientY - rect.top;
+			
+			panelEl.style.transition = 'none';
+		};
+
+		const moveDrag = (clientX, clientY) => {
+			if (!isMouseDown) return;
+
+			if (!isDragging) {
+				const dx = clientX - startX;
+				const dy = clientY - startY;
+				if (dx * dx + dy * dy < 25) return;
+
+				isDragging = true;
+				maxZIndex++;
+				panelEl.style.zIndex = maxZIndex;
+				headerEl.style.cursor = 'grabbing';
+				
+				const rect = panelEl.getBoundingClientRect();
+				panelEl.style.right = 'auto';
+				panelEl.style.left = rect.left + 'px';
+				panelEl.style.top = rect.top + 'px';
+			}
+
+			if (isDragging) {
+				let newX = clientX - offsetX;
+				let newY = clientY - offsetY;
+				
+				const isMobile = window.innerWidth < 600;
+				const frameMargin = isMobile ? 0 : 20;
+				const snapThreshold = isMobile ? 10 : 20;
+				
+				const winW = window.innerWidth;
+				const winH = window.innerHeight;
+				const pW = panelEl.offsetWidth;
+				const pH = panelEl.offsetHeight;
+
+				if (Math.abs(newX - frameMargin) < snapThreshold) newX = frameMargin;
+				else if (Math.abs((newX + pW) - (winW - frameMargin)) < snapThreshold) newX = winW - frameMargin - pW;
+
+				if (Math.abs(newY - frameMargin) < snapThreshold) newY = frameMargin;
+				else if (Math.abs((newY + pH) - (winH - frameMargin)) < snapThreshold) newY = winH - frameMargin - pH;
+
+				newX = Math.max(0, Math.min(winW - pW, newX));
+				newY = Math.max(0, Math.min(winH - pH, newY));
+
+				panelEl.style.left = newX + 'px';
+				panelEl.style.top = newY + 'px';
+			}
+		};
+
+		const endDrag = () => {
+			isMouseDown = false;
+			if (isDragging) {
+				isDragging = false;
+				headerEl.style.cursor = 'grab';
+				panelEl.style.transition = '';
+			}
+		};
+
+		headerEl.addEventListener('dblclick', (e) => {
+			if (e.target.closest('button')) return;
+
+			panelEl.classList.toggle('collapsed');
+			const toggleBtn = headerEl.querySelector('button');
+
+			if (toggleBtn) {
+				const isCollapsed = panelEl.classList.contains('collapsed');
+				toggleBtn.innerHTML = isCollapsed ? '<i class="fa-solid fa-plus"></i>' : '<i class="fa-solid fa-minus"></i>';
+			}
+			
+			panelEl.style.removeProperty('top');
+			panelEl.style.removeProperty('left');
+			panelEl.style.removeProperty('right');
+			
+			if (!panelEl.classList.contains('collapsed')) {
+				setTimeout(clampPosition, 300);
+			}
+		});
+
+		panelEl.addEventListener('mousedown', () => {
+			maxZIndex++;
+			panelEl.style.zIndex = maxZIndex;
+		});
+		
+		panelEl.addEventListener('touchstart', () => {
+			maxZIndex++;
+			panelEl.style.zIndex = maxZIndex;
+		}, {passive: true});
+
+		headerEl.addEventListener('mousedown', (e) => {
+			if(e.target.closest('button')) return; 
+			startDrag(e.clientX, e.clientY);
+		});
+
+		window.addEventListener('mousemove', (e) => {
+			moveDrag(e.clientX, e.clientY);
+		});
+
+		window.addEventListener('mouseup', endDrag);
+
+		headerEl.addEventListener('touchstart', (e) => {
+			if(e.target.closest('button')) return;
+			e.preventDefault();
+			const touch = e.touches[0];
+			startDrag(touch.clientX, touch.clientY);
+		}, {passive: false});
+
+		window.addEventListener('touchmove', (e) => {
+			if(isMouseDown) {
+				if (isDragging) e.preventDefault();
+				const touch = e.touches[0];
+				moveDrag(touch.clientX, touch.clientY);
+			}
+		}, {passive: false});
+
+		window.addEventListener('touchend', endDrag);
 	};
 	
 	const setupInjectionPreview = () => {
