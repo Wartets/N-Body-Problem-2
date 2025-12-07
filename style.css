@@ -742,6 +742,32 @@ button, input, select, label, .btn, .toggle-row {
 	touch-action: manipulation;
 }
 
+footer {
+	margin-top: auto;
+	padding-top: 15px;
+	border-top: 1px solid var(--panel-border);
+	color: var(--text-desc);
+	font-size: 10px;
+	text-align: center;
+	width: 100%;
+}
+
+footer p {
+	margin: 0;
+	line-height: 1.5;
+}
+
+footer a {
+	color: var(--text-secondary);
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+footer a:hover {
+	color: var(--text-primary);
+	text-decoration: underline;
+}
+
 @media (max-width: 850px) {
 	.section-header {
 		font-size: 13px;

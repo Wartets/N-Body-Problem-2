@@ -64,6 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				pane.classList.toggle('active', pane.id === `tab-${tabId}`);
 			});
 			localStorage.setItem(TAB_STORAGE_KEY, tabId);
+			
+			if (Render.drawMode !== 'none') {
+				Render.drawMode = 'none';
+				updateDrawToolButtons();
+			}
 		};
 
 		tabBtns.forEach(btn => {
@@ -79,9 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 
-	const inputsToParse = Object.keys(Schema)
-		.filter(k => Schema[k].type === 'number')
-		.map(k => getInputId(k));
+	const inputsToParse = Object.keys(Schema).filter(k => Schema[k].type === 'number').map(k => getInputId(k));
 	
 	const bodyProperties = Object.keys(Schema).filter(k => Schema[k].type === 'number').map(k => ({
 		label: Schema[k].label, key: Schema[k].internal || k, cls: `inp-${k.replace('_', '-')}`,
