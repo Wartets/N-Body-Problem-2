@@ -1010,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		label.style.cursor = 'ew-resize';
 		label.title = "Click and drag to change value. Hold Shift for precision, Ctrl for speed.";
 
-		const onMouseMove = (e) => {
+		const onMouseMove = (moveEvent) => {
 			if (!isDragging) return;
 
 			let currentValue = parseFloat(input.value);
@@ -1018,27 +1018,27 @@ document.addEventListener('DOMContentLoaded', () => {
 				currentValue = 0;
 			}
 			
-			const dx = e.clientX - lastX;
-			lastX = e.clientX;
+			const dx = moveEvent.clientX - lastX;
+			lastX = moveEvent.clientX;
 
-			let effectiveSensitivity;
 			const absCurrent = Math.abs(currentValue);
+			let effectiveSensitivity;
+			
+			if (absCurrent === 0) {
+				effectiveSensitivity = 0.01;
+			} else {
+				// Dynamic sensitivity: ~2% of the current magnitude per pixel
+				effectiveSensitivity = Math.pow(10, Math.floor(Math.log10(absCurrent))) * 0.02;
+			}
 
-			if (absCurrent > 1000) effectiveSensitivity = 10;
-			else if (absCurrent > 100) effectiveSensitivity = 1;
-			else if (absCurrent > 10) effectiveSensitivity = 0.1;
-			else if (absCurrent >= 1 || currentValue === 0) effectiveSensitivity = 0.05;
-			else if (absCurrent > 0.1) effectiveSensitivity = 0.005;
-			else if (absCurrent > 0.01) effectiveSensitivity = 0.0005;
-			else if (absCurrent > 0.001) effectiveSensitivity = 0.00005;
-			else effectiveSensitivity = 1e-7;
-
-			if (e.shiftKey) effectiveSensitivity /= 10;
-			if (e.ctrlKey || e.metaKey) effectiveSensitivity *= 10;
-			if (e.altKey) effectiveSensitivity *= 100;
+			if (moveEvent.shiftKey) effectiveSensitivity /= 10;
+			if (moveEvent.ctrlKey || moveEvent.metaKey) effectiveSensitivity *= 10;
+			if (moveEvent.altKey) effectiveSensitivity *= 100;
 
 			let newValue = currentValue + dx * effectiveSensitivity;
-			const minPositive = 1e-6;
+			
+			// Lower limit for constants to allow values up to 1e-100
+			const minPositive = 1e-100; 
 			
 			const allowsNegativeOne = constraintType === 'mass' || constraintType === 'lifetime' || constraintType === 'breakable';
 
@@ -1046,7 +1046,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				if (currentValue >= minPositive && newValue <= 0) {
 					newValue = -1;
 				} else if (currentValue === -1 && dx > 0) {
-					newValue = minPositive;
+					newValue = 1.0; 
 				} else if (currentValue === -1 && dx <= 0) {
 					newValue = -1;
 				}
@@ -1058,19 +1058,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				newValue = Math.max(0, newValue);
 			}
 
-			if (newValue > 0 && newValue < minPositive) {
+			if (newValue > 0 && newValue < minPositive && constraintType !== 'default') {
 				newValue = minPositive;
 			}
 			
-			const absNew = Math.abs(newValue);
-			let precision;
-			if (newValue === -1 || absNew === 0 || absNew >= 1) {
-				precision = 2;
-			} else if (absNew > 0.001) {
-				precision = 4;
-			} else {
-				precision = 6;
-			}
+			const precision = 4;
 			
 			input.value = (newValue === -1) ? -1 : formatVal(newValue, precision);
 			input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
@@ -1183,6 +1175,134 @@ document.addEventListener('DOMContentLoaded', () => {
 			renderVirtualVisible(true);
 			dragIndex = -1;
 		});
+	};
+	
+	const setupConstantsPanel = () => {
+		const header = document.getElementById('constantsHeader');
+		const content = document.getElementById('constantsContent');
+		const btn = document.getElementById('toggleConstantsBtn');
+		const scalingDiv = document.getElementById('scalingFactorsGrid');
+
+		if (!header || !content || !btn) return;
+
+		const toggleConstants = () => {
+			content.classList.toggle('hidden-content');
+			btn.innerHTML = content.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+		};
+
+		header.addEventListener('click', toggleConstants);
+		
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			toggleConstants();
+		});
+
+		const updateScalingInfo = () => {
+			if (!scalingDiv) return;
+
+			const u = Sim.units;
+			const factors = [
+				{ k: '\\( T_0 \\) (Time)', v: u.T0, unit: 's' },
+				{ k: '\\( L_0 \\) (Length)', v: u.L0, unit: 'm' },
+				{ k: '\\( M_0 \\) (Mass)', v: u.M0, unit: 'kg' },
+				{ k: '\\( Q_0 \\) (Charge)', v: u.Q0, unit: 'C' },
+				{ k: '\\( K_0 \\) (Temp.)', v: u.K0, unit: 'K' },
+				{ k: '\\( N_0 \\) (Amt)', v: u.N0, unit: 'mol' },
+				{ k: '\\( I_0 \\) (Int)', v: u.I0, unit: 'cd' },
+				{ k: '\\( A_0 \\) (Curr)', v: u.A0, unit: 'A' }
+			];
+			
+			scalingDiv.innerHTML = '';
+			factors.forEach(f => {
+				const div = document.createElement('div');
+				div.innerHTML = `<span style="color:var(--text-secondary);">${f.k}:</span> <span style="color:var(--text-primary);">${f.v.toExponential(2)} ${f.unit}</span>`;
+				scalingDiv.appendChild(div);
+			});
+
+			if (window.renderMathInElement) {
+				renderMathInElement(scalingDiv, {
+					delimiters: [{left: '\\(', right: '\\)', display: false}]
+				});
+			}
+		};
+
+		const configs = [
+			{ prop: 'c', id: 'const-c', min: 1e-60, max: 1e60 },
+			{ prop: 'G', id: 'const-G', min: 1e-60, max: 1e60 },
+			{ prop: 'h', id: 'const-h', min: 1e-60, max: 1e60 },
+			{ prop: 'Ke', id: 'const-Ke', min: 1e-60, max: 1e60 },
+			{ prop: 'kB', id: 'const-kB', min: 1e-60, max: 1e60 },
+			{ prop: 'NA', id: 'const-NA', min: 1, max: 1e60 },
+			{ prop: 'Kcd', id: 'const-Kcd', min: 1e-60, max: 1e60 }
+		];
+
+		const toSlider = (v, min, max) => {
+			if (v <= 0) return 0;
+			return (Math.log10(v) - Math.log10(min)) / (Math.log10(max) - Math.log10(min));
+		};
+		const fromSlider = (s, min, max) => Math.pow(10, Math.log10(min) + parseFloat(s) * (Math.log10(max) - Math.log10(min)));
+		
+		const setDisplay = (textEl, v) => {
+			textEl.value = formatVal(v, 4);
+		};
+
+		configs.forEach(cfg => {
+			const slider = document.getElementById(`${cfg.id}-slider`);
+			const text = document.getElementById(`${cfg.id}-text`);
+			if (!slider || !text) return;
+
+			slider.min = 0;
+			slider.max = 1;
+			slider.step = 'any';
+
+			const obj = Sim.units.sim;
+			const initialVal = obj[cfg.prop];
+
+			slider.value = toSlider(initialVal, cfg.min, cfg.max);
+			setDisplay(text, initialVal);
+			
+			const updateState = (val, source) => {
+				if (val <= 0 && source !== 'slider') val = Number.EPSILON; 
+				obj[cfg.prop] = val;
+				
+				if (source !== 'slider') {
+					slider.value = toSlider(val, cfg.min, cfg.max);
+				}
+				if (source !== 'text') {
+					setDisplay(text, val);
+				}
+				updateScalingInfo();
+			};
+
+			slider.addEventListener('input', () => {
+				const v = fromSlider(slider.value, cfg.min, cfg.max);
+				updateState(v, 'slider');
+			});
+
+			text.addEventListener('change', () => {
+				let v = parseFloat(text.value);
+				if (isNaN(v)) v = obj[cfg.prop];
+				updateState(v, 'text');
+			});
+			
+			// Handles drag from interactive label (which triggers 'input') and typing
+			text.addEventListener('input', () => {
+				const v = parseFloat(text.value);
+				if (!isNaN(v)) {
+					// Directly update model and slider without reformatting the text to avoid cursor jumps
+					obj[cfg.prop] = v;
+					slider.value = toSlider(v, cfg.min, cfg.max);
+					updateScalingInfo();
+				}
+			});
+
+			const label = slider.parentElement.previousElementSibling;
+			if (label && typeof setupInteractiveLabel === 'function') {
+				setupInteractiveLabel(label, text, 'positive');
+			}
+		});
+
+		updateScalingInfo();
 	};
 	
 	const constraintMap = {};
@@ -2493,6 +2613,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	initSimPresets();
 	setupInjectionPreview();
 	initHistoryControls();
+	
+	setupConstantsPanel();
 	
 	Render.init();
 	refreshFieldList(); 

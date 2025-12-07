@@ -31,6 +31,10 @@
 	<meta name="twitter:description" content="Simulate complex gravitational and electromagnetic interactions in real-time. Create solar systems, galaxies, or particle experiments.">
 	<meta name="twitter:image" content="https://wartets.github.io/N-Body-Simulation/app-icon.jpg">
 
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
 	<link rel="icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
 	<link rel="apple-touch-icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -115,6 +119,67 @@
 						<div class="control-row">
 							<label>Fragments Lifetime <i class="fa-solid fa-circle-question help-icon" data-tooltip="Lifetime of fragments in ticks. -1 for infinite."></i></label>
 							<input type="text" id="fragLifetimeInput" style="width: 60px; text-align: right; background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); border-radius: 3px; font-size: 11px; padding: 2px 4px;">
+						</div>
+					</div>
+				</div>
+				
+				<div class="tool-group" style="margin-top: 10px;">
+					<div class="section-header" id="constantsHeader">
+						CONSTANTS & SCALING
+						<button id="toggleConstantsBtn" class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div id="constantsContent" class="hidden-content">
+						<div id="scalingFactorsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border); font-size: 10px;"></div>				
+						<div style="padding: 5px 0;">
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( c \) (Speed of light in a vacuum)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-c-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-c-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( G \) (Gravitational constant)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-G-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-G-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( h \) (Planck constant)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-h-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-h-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( K_e \) (Coulomb Constant)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-Ke-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-Ke-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( k_B \) (Boltzmann constant)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-kB-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-kB-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( N_A \) (Avogadro Constant)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-NA-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-NA-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
+							<div class="mini-input-group" style="margin-bottom: 8px;">
+								<label style="display:flex; justify-content:space-between; width:100%;"><span>\( K_{cd} \) (Luminous efficacy)</span></label>
+								<div style="display:flex; align-items:center; gap:5px;">
+									<input type="range" id="const-Kcd-slider" class="slider" step="any" style="flex:1;">
+									<input type="text" id="const-Kcd-text" class="text-inp" style="width:70px; font-family:monospace; font-size:10px; text-align:right;">
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -614,6 +679,16 @@
 	<script src="interface.js"></script>
 	<script src="presets.js"></script>
 	<script>
+		document.addEventListener("DOMContentLoaded", function() {
+			if (window.renderMathInElement) {
+				renderMathInElement(document.body, {
+					delimiters: [
+						{left: '\\(', right: '\\)', display: false}
+					]
+				});
+			}
+		});
+
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('sw.js');
 		}

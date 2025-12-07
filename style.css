@@ -656,6 +656,12 @@ input[type=range]::-moz-range-thumb {
 	outline: none;
 }
 
+.mini-input-group input[type="range"] {
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
 .toggle-header { cursor: pointer; }
 #injectionContent { transition: all 0.3s ease; overflow: hidden; }
 .hidden-content {
