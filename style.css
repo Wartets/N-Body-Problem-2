@@ -66,6 +66,10 @@ canvas {
 	image-rendering: pixelated;
 }
 
+i {
+	image-rendering: high-quality;
+}
+
 #controlPanel {
 	position: absolute;
 	top: 20px;

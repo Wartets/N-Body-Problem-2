@@ -23,6 +23,7 @@ const Rendering = {
 	enableTracking: false,
 	enableAutoZoom: false,
 	userZoomFactor: 1.0, 
+	trackingLookahead: 0.2,
 	trackedBodyId: null,
 
 	gridDetail: 5,
@@ -610,7 +611,7 @@ const Rendering = {
 		}
 	},
 	
-	updateAutoCam: function(bodies) {
+	updateAutoCam: function(bodies, deltaTime) {
 		const bodyArray = Object.values(bodies);
 		if (!bodyArray.length) return;
 
@@ -620,6 +621,8 @@ const Rendering = {
 		let totalMass = 0;
 		let comX = 0; 
 		let comY = 0;
+		let comVX = 0;
+		let comVY = 0;
 
 		bodyArray.forEach(b => {
 			if (b.x < minX) minX = b.x;
@@ -630,26 +633,53 @@ const Rendering = {
 			if (this.enableTracking) {
 				comX += b.x * b.mass;
 				comY += b.y * b.mass;
+				comVX += b.vx * b.mass;
+				comVY += b.vy * b.mass;
 				totalMass += b.mass;
 			}
 		});
 
 		if (doTracking) {
-			let targetX, targetY;
-			
+			let finalTargetX, finalTargetY;
+			let targetVX = 0, targetVY = 0, targetCurrentX = 0, targetCurrentY = 0;
+			let hasTarget = false;
+
 			if (this.trackedBodyId !== null && bodies[this.trackedBodyId]) {
 				const trackedBody = bodies[this.trackedBodyId];
-				targetX = -trackedBody.x * this.zoom;
-				targetY = -trackedBody.y * this.zoom;
-			} else if (this.enableTracking && totalMass > 0) {
-				targetX = -(comX / totalMass) * this.zoom;
-				targetY = -(comY / totalMass) * this.zoom;
+				targetVX = trackedBody.vx;
+				targetVY = trackedBody.vy;
+				targetCurrentX = trackedBody.x;
+				targetCurrentY = trackedBody.y;
+				hasTarget = true;
+			} else if (this.enableTracking && totalMass !== 0) {
+				targetVX = comVX / totalMass;
+				targetVY = comVY / totalMass;
+				targetCurrentX = comX / totalMass;
+				targetCurrentY = comY / totalMass;
+				hasTarget = true;
 			}
 
-			if (targetX !== undefined) {
-				const posSmooth = 0.1;
-				this.camX += (targetX - this.camX) * posSmooth;
-				this.camY += (targetY - this.camY) * posSmooth;
+			if (hasTarget) {
+				const speed = Math.sqrt(targetVX * targetVX + targetVY * targetVY);
+				
+				const minLookahead = 0.1;
+				const maxLookahead = 1.0;
+				const velocityFactor = 0.05;
+				const lookahead = Math.max(minLookahead, Math.min(maxLookahead, minLookahead + speed * velocityFactor));
+
+				const predictedX = targetCurrentX + targetVX * lookahead;
+				const predictedY = targetCurrentY + targetVY * lookahead;
+
+				finalTargetX = -predictedX * this.zoom;
+				finalTargetY = -predictedY * this.zoom;
+			}
+
+			if (finalTargetX !== undefined && deltaTime > 0) {
+				const smoothingFactor = 5;
+				const lerpAmount = 1 - Math.exp(-smoothingFactor * (deltaTime / 1000));
+				
+				this.camX += (finalTargetX - this.camX) * lerpAmount;
+				this.camY += (finalTargetY - this.camY) * lerpAmount;
 			}
 		}
 
@@ -664,14 +694,12 @@ const Rendering = {
 			let fitZoom = Math.min(scaleX, scaleY);
 			
 			const targetZoom = fitZoom * this.userZoomFactor;
-
-			let zoomSmooth = 0.02; 
-			if (targetZoom < this.zoom) {
-				zoomSmooth = 0.1;
+			
+			if(deltaTime > 0) {
+				const zoomLerpAmount = 1 - Math.exp(-3 * (deltaTime / 1000));
+				this.zoom += (targetZoom - this.zoom) * zoomLerpAmount;
 			}
 
-			this.zoom += (targetZoom - this.zoom) * zoomSmooth;
-			
 			if (Math.abs(targetZoom - this.zoom) < 0.0001) {
 				this.zoom = targetZoom;
 			}
@@ -1818,9 +1846,9 @@ const Rendering = {
 		ctx.restore();
 	},
 	
-	draw: function() {
+	draw: function(deltaTime) {
 		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyId !== null) {
-			this.updateAutoCam(window.App.sim.bodies);
+			this.updateAutoCam(window.App.sim.bodies, deltaTime);
 		}
 		
 		this.drawnLabels = [];
@@ -1975,9 +2003,9 @@ const Rendering = {
 			sim.update(false, dt);
 		}
 		
-		this.draw();
+		this.draw(deltaTime);
 		requestAnimationFrame(() => this.loop());
-	}
+	},
 };
 
 window.App.render = Rendering;

@@ -1123,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		let dragEl = null;
 		
 		bodiesContainer.addEventListener('mousedown', (e) => {
-			if (e.target.tagName === 'INPUT' || e.target.closest('button') || e.target.classList.contains('body-name-input')) return;
+			if (e.target.tagName === 'INPUT' || e.target.closest('button') || e.target.classList.contains('body-name-input') || e.target.closest('label')) return;
 			if (e.offsetX > bodiesContainer.clientWidth) return;
 
 			const card = e.target.closest('.body-card');
