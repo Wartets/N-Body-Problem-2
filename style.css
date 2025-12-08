@@ -799,6 +799,53 @@ footer a:hover {
 	text-decoration: underline;
 }
 
+.info-section .section-header {
+	cursor: pointer;
+	padding: 4px 0;
+}
+
+.info-section .info-content {
+	padding-left: 10px;
+	border-left: 2px solid var(--panel-border);
+	font-size: 11px;
+	color: var(--text-secondary);
+	line-height: 1.6;
+}
+
+.info-content h4 {
+	font-size: 12px;
+	color: var(--text-primary);
+	margin-top: 12px;
+	margin-bottom: 6px;
+}
+
+.info-content ul {
+	padding-left: 15px;
+	margin: 5px 0;
+}
+
+.info-content li {
+	margin-bottom: 8px;
+}
+
+.info-content kbd {
+	background-color: rgba(255, 255, 255, 0.1);
+	border: 1px solid var(--panel-border);
+	border-radius: 3px;
+	padding: 1px 4px;
+	font-family: monospace;
+	font-size: 10px;
+	margin: 0 2px;
+}
+
+.info-content a {
+	color: var(--accent);
+	text-decoration: none;
+}
+.info-content a:hover {
+	text-decoration: underline;
+}
+
 @media (max-width: 850px) {
 	.section-header {
 		font-size: 13px;

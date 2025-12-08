@@ -656,21 +656,252 @@
 			</div>
 
 			<div id="tab-infos" class="tab-pane">
-				<div class="control-section">
-					<div class="section-header">Infos</div>
-					<div style="font-size: 11px; color: var(--text-secondary);">
-						<p>...</p>
+			
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>Physics, Models, and Algorithms</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<p>This simulation models the dynamics of a system of particles (N-bodies) interacting under various physical forces. The motion of these bodies is calculated over time using numerical integration techniques, which predict their state at a future time based on their current state. Here is a detailed breakdown of the core components:</p>
+						
+						<h4>Core Physical Interactions</h4>
+						<p>The simulation accounts for several fundamental forces that can be enabled or disabled by the user.</p>
+						<ul>
+							<li><strong>Gravitation:</strong> The primary long-range force is gravity, modeled using Newton's law of universal gravitation. The force \( \vec{F}_g \) exerted on a body of mass \( m_1 \) by a body of mass \( m_2 \) is an attractive force directed along the line connecting their centers:
+								<br>
+								$$ \vec{F}_g = -G \frac{m_1 m_2}{r^2} \hat{r}_{21} $$
+								<br>
+								where \( G \) is the gravitational constant, \( r \) is the distance between the bodies, and \( \hat{r}_{21} \) is the unit vector pointing from body 2 to body 1. In the simulation, forces are calculated pair-wise, and the resulting acceleration \( \vec{a} = \vec{F}/\text{m} \) is applied to each body.
+								<br>When fragmentation is enabled, the simulation also considers <strong>tidal forces</strong>. These arise from the gravitational gradient across a body, which can stretch it apart if the force exceeds its structural integrity. The approximate tidal force is \( F_{tidal} \propto \frac{2 G M m R}{r^3} \), where M is the mass of the larger body and R is the radius of the smaller body m.
+							</li>
+							<li><strong>Electromagnetism:</strong> The simulation includes electrostatic and simplified magnetic forces.
+								<ul>
+									<li><strong>Electrostatics:</strong> Modeled by Coulomb's Law, which describes the force between two point charges \( q_1 \) and \( q_2 \):
+										<br>
+										$$ \vec{F}_e = K_e \frac{q_1 q_2}{r^2} \hat{r}_{21} $$
+										<br>
+										Here, \( K_e \) is Coulomb's constant. The force is repulsive for like charges (\(q_1 q_2 \gt 0\)) and attractive for opposite charges (\(q_1 q_2 \lt 0\)).
+									</li>
+									<li><strong>Magnetism:</strong> A simplified model for interactions between magnetic dipoles is used, assuming the dipoles are aligned. The force is approximated as being proportional to the inverse fourth power of distance:
+										<br>
+										$$ F_m \propto \frac{K_m \mu_1 \mu_2}{r^4} $$
+										<br>
+										where \( \mu_1 \) and \( \mu_2 \) are the scalar magnetic moments of the bodies and \( K_m \) is the magnetic force constant derived from \( K_e \) and the speed of light \(c\). This model captures the characteristic rapid fall-off of dipole-dipole interactions without the complexity of calculating orientation-dependent torques.
+									</li>
+								</ul>
+							</li>
+							<li><strong>Collisions and Contact Mechanics:</strong> When enabled, bodies can collide. The model is based on rigid-body dynamics with impulse resolution.
+								<ul>
+									<li><strong>Detection:</strong> A collision is detected when the distance \( d \) between the centers of two circular bodies is less than the sum of their radii (\( d \lt r_1 + r_2 \)).</li>
+									<li><strong>Resolution:</strong> An instantaneous impulse \( \vec{J} \) is calculated and applied to the bodies to resolve the collision. An impulse represents the change in momentum (\( \vec{J} = \Delta\vec{p} \)). The normal component of the impulse separates the bodies and is determined by the <strong>coefficient of restitution \( e \)</strong>, which dictates the elasticity of the collision (\( v'_{rel, n} = -e \cdot v_{rel, n} \)). An \( e=1 \) is a perfectly elastic collision, while \( e=0 \) is perfectly inelastic. The tangential component models friction using a <strong>Coulomb friction model</strong>, which opposes sliding motion.</li>
+								</ul>
+							</li>
+							<li><strong>Thermodynamics:</strong> This model introduces thermal energy and temperature-dependent physics.
+								<ul>
+									<li><strong>Heat from Collisions:</strong> In inelastic collisions (\( e \lt 1 \)), some kinetic energy is converted into thermal energy, increasing the bodies' temperatures based on their specific heat capacity. The generated heat \( Q \) is:
+										<br>
+										$$ Q = \Delta E_{kinetic} = \frac{1}{2} m_{reduced} v_{rel, n}^2 (1 - e^2) $$
+										where \( m_{reduced} = (m_1^{-1} + m_2^{-1})^{-1} \).
+									</li>
+									<li><strong>Radiative Cooling:</strong> Bodies cool down by emitting thermal radiation according to the Stefan-Boltzmann law. The net power radiated \( P \) depends on the body's temperature \( T \) and the ambient temperature \( T_{amb} \):
+										<br>
+										$$ P = \sigma \epsilon A (T^4 - T_{amb}^4) $$
+										<br>
+										where \( \sigma \) is the Stefan-Boltzmann constant, A is the surface area, and \( \epsilon \) is the emissivity (assumed to be 1).
+									</li>
+									<li><strong>Temperature-Dependent Properties:</strong> A body's material properties, such as its restitution \(e\) and Young's Modulus \(Y\), change with temperature to simulate phase transitions (e.g., solid to liquid). This is modeled using a logistic function:
+										<br>
+										$$ P_{current} = P_{min} + (P_{base} - P_{min}) \cdot \frac{1}{1 + e^{k(T - T_c)}} $$
+										where \( P_{base} \) is the property in the "cold" state, \( P_{min} \) in the "hot" state, \( T_c \) is the critical temperature, and \( k \) is the transition factor.
+									</li>
+								</ul>
+							</li>
+						</ul>
+
+						<h4>Algorithms and Numerical Methods</h4>
+						<ul>
+							<li><strong>Numerical Integration:</strong> To compute the trajectories, the simulation uses the <strong>Velocity Verlet</strong> integration algorithm. This is a numerical method for solving Newton's equations of motion. For each time step \( \Delta t \), it updates positions and velocities as follows:
+								<ol>
+									<li>Calculate velocity at the midpoint of the time step: \( \vec{v}(t + \frac{1}{2}\Delta t) = \vec{v}(t) + \frac{1}{2} \vec{a}(t) \Delta t \)</li>
+									<li>Update positions using this midpoint velocity: \( \vec{x}(t + \Delta t) = \vec{x}(t) + \vec{v}(t + \frac{1}{2}\Delta t) \Delta t \)</li>
+									<li>Calculate the new acceleration \( \vec{a}(t + \Delta t) \) based on the forces at the new position \( \vec{x}(t + \Delta t) \).</li>
+									<li>Update the final velocity: \( \vec{v}(t + \Delta t) = \vec{v}(t + \frac{1}{2}\Delta t) + \frac{1}{2} \vec{a}(t + \Delta t) \Delta t \)</li>
+								</ol>
+								This algorithm is chosen for its excellent long-term energy conservation, time-reversibility, and second-order accuracy, making it highly suitable for N-body simulations where stability is crucial.
+							</li>
+							<li><strong>Performance Optimization:</strong> Calculating the force between every pair of bodies (direct summation) has a computational complexity of O(N²), which becomes prohibitively slow for large N. To address this, the simulation employs the <strong>Barnes-Hut algorithm</strong>:
+								<ul>
+									<li>This algorithm approximates the force from a distant cluster of bodies as the force from a single "macro-particle" located at the cluster's center of mass.</li>
+									<li>It works by first recursively dividing the 2D space into a grid of cells using a <strong>quadtree</strong>. Each node in the tree represents a region of space.</li>
+									<li>To calculate the net force on a body, it traverses the tree. If a node is sufficiently far away, the force from all bodies within that node is approximated as a single interaction. The criterion for "sufficiently far" is given by the opening angle \( \theta \):
+									<br>
+									$$ \frac{s}{d} \lt \theta $$
+									<br>
+									where \( s \) is the width of the node's region, \( d \) is the distance to its center of mass, and \( \theta \) is a tunable accuracy parameter (typically ~0.5). If the condition is not met, the node is "opened," and its children are considered individually.</li>
+									<li>This hierarchical approach reduces the computational complexity to O(N log N), enabling simulations with thousands of bodies in real-time.</li>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>Features and Tools Guide</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<h4>Keyboard Shortcuts</h4>
+						<p>Optimize your workflow with these keyboard shortcuts:</p>
+						<ul>
+							<li><kbd>Spacebar</kbd>: Toggles the simulation between playing and paused states. This is the most frequently used shortcut for controlling the flow of time.</li>
+							<li><kbd>Ctrl</kbd> + <kbd>Z</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Y</kbd>: Undoes the last action performed, such as adding a body, creating a zone, or modifying a parameter. The simulation state is reverted to before the action.</li>
+							<li><kbd>Ctrl</kbd> + <kbd>Y</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>: Redoes an action that was previously undone. This is useful if you undo too many steps.</li>
+							<li><kbd>&rarr;</kbd> (Right Arrow): When the simulation is paused, this advances the simulation by a single time step (dt). It allows for frame-by-frame analysis of interactions.</li>
+							<li><kbd>&larr;</kbd> (Left Arrow): When paused, this reverses time by one time step. Note that this is a true time reversal, not just an undo.</li>
+							<li><kbd>Shift</kbd> + <kbd>&rarr;</kbd> / <kbd>&larr;</kbd>: Hold the Shift key while pressing the arrow keys to step forward or backward by 10 time steps at a time, for faster analysis.</li>
+							<li><kbd>F11</kbd>: Toggles your browser's fullscreen mode, providing a more immersive simulation experience without interface clutter.</li>
+						</ul>
+						<h4>Zone Types</h4>
+						<p>Zones are user-defined regions that apply unique physical effects to bodies within their boundaries. They are a powerful tool for creating complex and controlled simulation environments.</p>
+						<ul>
+							<li><strong>Periodic Zones:</strong> These zones create a "wrap-around" or toroidal space. When a body's center crosses one boundary of the zone, it is instantly teleported to the opposite side with its velocity intact. This is useful for simulating infinite, repeating environments or studying phenomena like crystal structures.</li>
+							<li><strong>Viscosity Zones:</strong> This simulates a region filled with a fluid-like medium (e.g., water or gas). It applies a drag force to any body inside it, which is proportional to the body's velocity but in the opposite direction. This causes bodies to slow down, mimicking the effect of friction in a fluid. Higher viscosity values result in a stronger drag.</li>
+							<li><strong>Field Zones:</strong> Applies a constant and uniform acceleration (a force per unit mass) to all bodies within its boundaries. This can be used to simulate effects like a uniform gravitational field near a planet's surface or a constant wind. The force is defined by its x and y components.</li>
+							<li><strong>Thermal Zones:</strong> These act as a thermostat for a region of space. Any body entering the zone will gradually heat up or cool down towards the zone's target temperature. The rate of heat transfer is determined by the zone's heat transfer coefficient. This is ideal for simulating environments like a hot star's corona or a cold nebula.</li>
+							<li><strong>Annihilation Zones:</strong> Acts as a "black hole" or destructive region. Any body that enters this zone is immediately removed from the simulation. You can optionally enable a "particle burst" effect, which creates a spray of small, short-lived particles upon a body's annihilation, simulating a destructive event.</li>
+							<li><strong>Chaos Zones:</strong> Introduces unpredictability by applying a randomized, fluctuating force field. The force vectors within the zone are generated using Perlin noise, creating a smoothly varying but chaotic motion. This can be used to simulate turbulence or other complex, non-linear environmental effects. Strength, frequency, and scale parameters allow for fine-tuning the chaotic behavior.</li>
+							<li><strong>Vortex Zones:</strong> Creates a swirling force field that pulls bodies towards a central point while also rotating them around it, similar to a whirlpool or a galaxy's spiral arm. The strength of the vortex typically decreases with distance from the center. This is perfect for simulating galactic dynamics or fluid vortices.</li>
+							<li><strong>Null Zones:</strong> This is a unique zone that allows you to "turn off" fundamental forces for any body inside it. You can selectively disable gravity, electricity, and/or magnetism. This is an advanced tool for creating force-free regions or studying how systems evolve when one of the fundamental interactions is suddenly removed.</li>
+						</ul>
+						<h4>Custom Formula Fields</h4>
+						<p>This is one of the most powerful and creative tools in the simulation. It allows you to define your own custom force fields using mathematical expressions. The simulation interprets these formulas to calculate the components of acceleration (<code>E_x</code> and <code>E_y</code>) that should be applied to a body at any point (<code>x</code>, <code>y</code>) in space. This force is proportional to the body's charge.</p>
+						<ul>
+							<li><strong>Available Variables:</strong> Your formulas can use the following built-in variables:
+								<ul>
+									<li><code>x</code>, <code>y</code>: The current coordinates of the point in space where the force is being calculated.</li>
+									<li><code>t</code>: The current simulation time in seconds. This allows for time-varying fields.</li>
+									<li><code>G</code>, <code>c</code>, <code>Ke</code>: The current values of the simulation's physical constants (Gravitational constant, Speed of light, Coulomb's constant).</li>
+									<li><code>PI</code>, <code>E</code>: The mathematical constants &pi; and e.</li>
+								</ul>
+							</li>
+							<li><strong>Supported Functions &amp; Syntax:</strong>
+								<ul>
+									<li>You can use all standard JavaScript Math functions, such as <code>sin()</code>, <code>cos()</code>, <code>tan()</code>, <code>sqrt()</code>, <code>log()</code>, <code>abs()</code>, <code>pow()</code>, etc.</li>
+									<li>Standard operators <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code> are supported.</li>
+									<li>For exponentiation, you can use either <code>**</code> or <code>^</code> (e.g., <code>x^2</code> is the same as <code>x**2</code>).</li>
+									<li>The parser will automatically insert multiplication signs where they are implied, for example, <code>2x</code> will be interpreted as <code>2*x</code>, and <code>(x+1)(y-1)</code> will be interpreted as <code>(x+1)*(y-1)</code>.</li>
+								</ul>
+							</li>
+							<li><strong>Example: A Pulsating Quadrupole Field</strong>
+								<p>Let's create a more complex field that changes over time. A quadrupole field's strength falls off faster than a simple dipole. We'll make it pulsate using the time variable <code>t</code>.</p>
+								<p><code>E_x: sin(t) * (x*y) / (x*x + y*y)^2.5</code></p>
+								<p><code>E_y: sin(t) * (y*y - x*x/2) / (x*x + y*y)^2.5</code></p>
+								<p>This creates a complex, oscillating field that will push and pull charged particles in intricate patterns. Experimenting with these formulas is key to discovering new and interesting behaviors.</p>
+							</li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>Basic Controls</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<h4>Navigation</h4>
+						<ul>
+							<li><strong>Pan:</strong> Click and drag on an empty area of the canvas.</li>
+							<li><strong>Zoom:</strong> Use the mouse wheel to zoom in and out. The zoom is centered on your cursor's position. On touch devices, use a two-finger pinch gesture.</li>
+						</ul>
+						<h4>Interacting with Bodies</h4>
+						<ul>
+							<li><strong>Select a Body:</strong> Click on a body to select it. Its properties will be highlighted in the "Bodies" tab, and a velocity vector will appear.</li>
+							<li><strong>Move a Body:</strong> Click and drag a selected body to reposition it. The simulation will pause automatically.</li>
+							<li><strong>Adjust Velocity:</strong> Click and drag the white circle at the tip of the selected body's velocity vector to change its speed and direction.</li>
+						</ul>
+						<h4>Using Tools (in the "Tools" tab)</h4>
+						<ul>
+							<li><strong>Drawing Zones/Barriers:</strong> Click the tool button (e.g., "Draw Zone") to activate draw mode. Then, click and drag on the canvas to define the shape's boundaries. For circles, the start point is the center and you drag to define the radius.</li>
+							<li><strong>Creating Bonds:</strong> Activate the "Link Bodies" tool. Click and drag from one body to another to create an elastic bond between them.</li>
+						</ul>
 					</div>
 				</div>
 				
-				<footer>
-					<p>&copy; 2025. Licensed under MIT. Designed by 
-						<a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>.
-						<wbr>Check out more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>.
-					</p>
-				</footer>
-			</div>
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>Simulation Units vs. SI Units</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<p>To ensure numerical stability and computational efficiency, this simulation does not directly use standard real-world units (like meters, kilograms, seconds). Instead, it operates within an internal, dimensionless system. The values for physical constants, such as the gravitational constant \( G \) or the speed of light \( c \), are scaled to values that are more manageable for the computer. This section details the relationship between these internal simulation units and the corresponding SI (International System of Units) values.</p>
+						
+						<h4>The Concept of Simulation Units</h4>
+						<p>In the simulation's universe, the fundamental physical constants can be adjusted in the "Constants & Scaling" section of the "Simulation" tab. Changing these values fundamentally alters the physics of the simulation. For example:</p>
+						<ul>
+							<li>A larger simulation \( G \) value results in stronger gravitational forces relative to other forces.</li>
+							<li>A smaller simulation \( c \) value makes relativistic effects more pronounced at lower speeds.</li>
+						</ul>
+						<p>These adjustable constants (\(G_{sim}, c_{sim}, K_{e,sim}\), etc.) define the behavior of interactions within the simulation's context.</p>
 
+						<h4>Scaling Factors: The Bridge to Reality</h4>
+						<p>The "Constants & Scaling" section also displays a set of read-only values called <strong>Scaling Factors</strong> (\(T_0, L_0, M_0\), etc.). These factors are the conversion rates that bridge the gap between the simulation's internal units and the standard SI units. They are dynamically calculated based on the current values of the simulation's fundamental constants.</p>
+						<p>The core relationship is defined as follows:</p>
+						<p style="text-align: center; font-style: italic;">\( \text{Value}_{SI} = \text{Value}_{sim} \times \text{Scaling Factor} \)</p>
+						<p>For example:</p>
+						<ul>
+							<li>If the scaling factor for length (\(L_0\)) is \(1.496 \times 10^{11}\), it means that 1 unit of length in the simulation corresponds to \(1.496 \times 10^{11}\) meters in the real world (this is approximately one Astronomical Unit, the distance from the Earth to the Sun).</li>
+							<li>Similarly, if the scaling factor for mass (\(M_0\)) is \(5.972 \times 10^{24}\), then a body with a mass of 1 in the simulation represents an object with a mass of \(5.972 \times 10^{24}\) kilograms (the mass of the Earth).</li>
+						</ul>
+						<p>These scaling factors allow you to interpret the simulation in a real-world context or to set up scenarios that mimic known physical systems. By adjusting the base simulation constants, you can change these scaling factors to suit the scale of the system you wish to model, from planetary systems to subatomic particles.</p>
+
+						<h4>Derivation of Scaling Factors</h4>
+						<p>The scaling factors are not arbitrary. They are derived from the principle of dimensional analysis, ensuring that the laws of physics remain consistent between the simulation and the real world. The relationship for any physical constant \( K \) can be written as:</p>
+						<p> \( K_{SI} = K_{sim} \times \text{Factor}_K \)</p>
+						<p>Where \( \text{Factor}_K \) is the scaling factor for that constant's dimensions. For instance, the dimensions of the gravitational constant \( G \) are \( [L]^3 [M]^{-1} [T]^{-2} \). Therefore, its scaling factor is \( L_0^3 M_0^{-1} T_0^{-2} \). This leads to the equation:</p>
+						<p> \( G_{SI} = G_{sim} \times (L_0^3 M_0^{-1} T_0^{-2}) \)</p>
+						<p>By establishing similar relationships for other fundamental constants (like \( c \) and \( K_e \)), a system of equations is formed. Solving this system allows the simulation to determine the base scaling factors (\(L_0, M_0, T_0, Q_0\)...) from the user-defined simulation constants (\(G_{sim}, c_{sim}, K_{e,sim}\)...).</p>
+					</div>
+				</div>
+				
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>Performance Tips</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<p>N-body simulations can be computationally intensive. If you experience low frame rates (FPS), try the following:</p>
+						<ul>
+							<li><strong>Reduce Body Count:</strong> The number of bodies has the largest impact on performance. Use the "Cull Outside View" tool or manually delete bodies.</li>
+							<li><strong>Adjust Time Step (dt):</strong> Increasing the time step in the "Simulation" tab will make the simulation run faster, but can reduce accuracy and stability. Find a balance that works for your scenario.</li>
+							<li><strong>Disable Visual Effects:</strong> In the "View" tab, turn off computationally expensive effects like "Show Trails", "Show ... Field", and reduce "Spacetime Distortion".</li>
+							<li><strong>Use Barnes-Hut:</strong> For a large number of bodies, ensure the Barnes-Hut algorithm is enabled in the simulation settings for a significant performance boost.</li>
+							<li><strong>Disable Interactions:</strong> If you don't need certain forces (e.g., Magnetism, Thermodynamics), disabling them in the "Simulation" tab can save computational resources.</li>
+						</ul>
+					</div>
+				</div>
+				
+				<div class="control-section info-section">
+					<div class="section-header info-section-header">
+						<span>About and Credits</span>
+						<button class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+					</div>
+					<div class="info-content hidden-content">
+						<h4>About the Project</h4>
+						<p>This is an interactive N-Body physics simulation built with HTML, CSS, and JavaScript. It aims to provide an educational and entertaining tool for exploring orbital mechanics, electromagnetism, and other physical phenomena directly in the browser.</p>
+						<h4>Credits & Libraries</h4>
+						<ul>
+							<li><strong>Font Awesome:</strong> For the icons used throughout the user interface.</li>
+							<li><strong>KaTeX:</strong> For rendering of mathematical formulas.</li>
+						</ul>
+						<h4>License</h4>
+						<p>This project is open-source and licensed under the <a href="https://github.com/Wartets/N-Body-Simulation/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>.</p>
+						<h4>Author & Source Code</h4>
+						<p>Designed and developed by Wartets. You can explore more projects on my <a href="https://wartets.github.io/Wartets/" target="_blank" rel="noopener noreferrer">personal page</a> or check out the source code for this simulation on <a href="https://github.com/wartets/N-Body-Simulation" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 	
@@ -683,6 +914,7 @@
 			if (window.renderMathInElement) {
 				renderMathInElement(document.body, {
 					delimiters: [
+						{left: '$$', right: '$$', display: true},
 						{left: '\\(', right: '\\)', display: false}
 					]
 				});

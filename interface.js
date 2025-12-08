@@ -1012,6 +1012,21 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
+	const setupInfoTabCollapsibles = () => {
+		const infoHeaders = document.querySelectorAll('#tab-infos .info-section-header');
+		infoHeaders.forEach(header => {
+			header.addEventListener('click', () => {
+				const content = header.nextElementSibling;
+				const icon = header.querySelector('i.fa-solid');
+				if (content && icon) {
+					const isHidden = content.classList.toggle('hidden-content');
+					icon.classList.toggle('fa-chevron-left', isHidden);
+					icon.classList.toggle('fa-chevron-down', !isHidden);
+				}
+			});
+		});
+	};
+	
 	const setupCollapsibleList = (headerId, listContainerId, buttonId) => {
 		const header = document.getElementById(headerId);
 		const list = document.getElementById(listContainerId);
@@ -2640,6 +2655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	initHistoryControls();
 	
 	setupConstantsPanel();
+	setupInfoTabCollapsibles();
 	
 	Render.init();
 	refreshFieldList(); 
