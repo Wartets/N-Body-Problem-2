@@ -102,6 +102,10 @@ window.App.BodySchema = {
 	Y_base: { default: 0, label: 'Young\'s M. (Cold)', tip: 'Base Young\'s Modulus (solid state).', type: 'number', constraint: 'non-negative', prec: 0, inputId: 'newY_base' },
 	Y_min: { default: 0, label: 'Young\'s M. (Hot)', tip: 'Minimum Young\'s Modulus (liquid state).', type: 'number', constraint: 'non-negative', prec: 0, inputId: 'newY_min' },
 
+	parentId: { default: null, label: 'Parent ID', type: 'number', internal: 'parentId' },
+	parentOffsetX: { default: 0, label: 'Parent Offset X', type: 'number', internal: 'parentOffsetX' },
+	parentOffsetY: { default: 0, label: 'Parent Offset Y', type: 'number', internal: 'parentOffsetY' },
+
 	name: { default: "Body", label: 'Name', type: 'string' },
 	color: { default: null, label: 'Color', type: 'color' }
 };
@@ -155,6 +159,16 @@ class Body {
 				}
 			}
 		});
+		
+		if (this.parentId !== null && window.App.sim.bodies[this.parentId]) {
+			const parent = window.App.sim.bodies[this.parentId];
+			this.parentOffsetX = this.x - parent.x;
+			this.parentOffsetY = this.y - parent.y;
+		} else {
+			this.parentId = null;
+			this.parentOffsetX = 0;
+			this.parentOffsetY = 0;
+		}
 
 		this.active = config.active !== undefined ? config.active : true;
 		this.ax = 0;
@@ -1859,12 +1873,13 @@ const Simulation = {
 			if (!b.active) continue;
 			if (b.fragCooldown > 0) b.fragCooldown--;
 			
-			if (b.mass === -1) {
-				b.ax = 0; b.ay = 0; b.vx = 0; b.vy = 0;
-				continue;
+			if (b.mass === -1 || b.parentId !== null) {
+				b.ax = 0; b.ay = 0;
 			}
 			
-			this.integrateBody(b, dt);
+			if (b.mass !== -1 && b.parentId === null) {
+				this.integrateBody(b, dt);
+			}
 		}
 
 		this.updateGrid();
@@ -1881,7 +1896,9 @@ const Simulation = {
 		for (const b of bodyArray) {
 			if (!b.active) continue;
 
-			this.finalizeVelocity(b, dt);
+			if (b.parentId === null) {
+				this.finalizeVelocity(b, dt);
+			}
 			
 			if (b.lifetime > 0) {
 				b.lifetime--;
@@ -1999,7 +2016,25 @@ const Simulation = {
 					this.updateThermoProperties(b);
 				}
 			}
+		}
+		
+		for (const b of bodyArray) {
+			if (!b.active) continue;
+			if (b.parentId !== null) {
+				const parent = bodies[b.parentId];
+				if (parent) {
+					b.x = parent.x + b.parentOffsetX;
+					b.y = parent.y + b.parentOffsetY;
+					b.vx = parent.vx;
+					b.vy = parent.vy;
+				} else {
+					b.parentId = null;
+				}
+			}
+		}
 
+		for (const b of bodyArray) {
+			if (!b.active) continue;
 			if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
 				if (b.path.length === 0 || 
 					(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
@@ -2016,11 +2051,7 @@ const Simulation = {
 
 		if (bodiesToRemove.length > 0) {
 			for (const id of bodiesToRemove) {
-				const bodyToRemove = this.bodies[id];
-				if (bodyToRemove) {
-					window.App.BodyPool.release(bodyToRemove);
-					delete this.bodies[id];
-				}
+				this._removeBody(id);
 			}
 		}
 

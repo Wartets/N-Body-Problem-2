@@ -1891,8 +1891,20 @@ const Rendering = {
 			
 			if (!b.active) continue;
 
+			if (b.parentId !== null && bodies[b.parentId]) {
+				const parent = bodies[b.parentId];
+				this.ctx.beginPath();
+				this.ctx.moveTo(b.x, b.y);
+				this.ctx.lineTo(parent.x, parent.y);
+				this.ctx.strokeStyle = 'rgba(128, 128, 128, 0.5)';
+				this.ctx.lineWidth = 1 / this.zoom;
+				this.ctx.setLineDash([2 / this.zoom, 3 / this.zoom]);
+				this.ctx.stroke();
+				this.ctx.setLineDash([]);
+			}
+
 			if (b.x + b.radius < worldLeft || 
-				b.x - b.radius > worldRight || 
+				b.x - b.radius > worldRight ||
 				b.y + b.radius < worldTop || 
 				b.y - b.radius > worldBottom) {
 				continue;

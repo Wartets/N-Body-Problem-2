@@ -374,6 +374,20 @@ document.addEventListener('DOMContentLoaded', () => {
 		}, 20);
 	};
 	
+	const updateParentSelector = () => {
+		const parentSelect = document.getElementById('parentSelect');
+		if (!parentSelect) return;
+		const currentVal = parentSelect.value;
+		parentSelect.innerHTML = '<option value="">None</option>';
+		Object.values(Sim.bodies).forEach(body => {
+			const opt = document.createElement('option');
+			opt.value = body.id;
+			opt.textContent = `${body.name} (ID: ${body.id})`;
+			parentSelect.appendChild(opt);
+		});
+		parentSelect.value = currentVal;
+	};
+	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
 		const bodyArray = Object.values(Sim.bodies);
 		let totalMass = 0;
@@ -457,6 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		document.getElementById('newVY').value = formatVal(vy, 3);
 		document.getElementById('newAX').value = 0;
 		document.getElementById('newAY').value = 0;
+
+		document.getElementById('parentSelect').value = '';
 
 		if (!onlyKinematics) {
 			const mass = setDefault ? 2000 : Math.floor(Math.random() * 800) + 100;
@@ -723,6 +739,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 			}
 		});
+
+		const parentSelect = document.getElementById('parentSelect');
+		if (parentSelect && parentSelect.value) {
+			config.parentId = parseInt(parentSelect.value, 10);
+		}
 
 		const presetSelect = document.getElementById('presetSelect');
 		const presetColor = (presetSelect && presetSelect.dataset.color) ? presetSelect.dataset.color : null;
@@ -2001,6 +2022,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		const isActive = body.active;
 		const activeBtnClass = isActive ? '' : 'inactive-btn';
 		const activeIconClass = isActive ? 'fa-toggle-on' : 'fa-toggle-off';
+		
+		let parentInfo = '';
+		if (body.parentId !== null && Sim.bodies[body.parentId]) {
+			parentInfo = `<div class="parent-info"><i class="fa-solid fa-link"></i> ${Sim.bodies[body.parentId].name}</div>`;
+		}
 
 		let gridHtml = '';
 		bodyProperties.forEach(field => {
@@ -2024,6 +2050,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				</span>
 				<button class="btn-delete" title="Delete"><i class="fa-solid fa-trash"></i></button>
 			</div>
+			${parentInfo}
 			<div class="card-grid">${gridHtml}</div>
 		`;
 		
@@ -2113,6 +2140,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		
 		bodiesContainer.state.sortedBodyArray = bodyArray;
 		renderVirtualVisible(true);
+		
+		updateParentSelector();
 		
 		if (Render.selectedBodyId !== null) {
 			window.App.ui.highlightBody(Render.selectedBodyId);
